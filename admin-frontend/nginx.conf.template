@@ -27,6 +27,20 @@ server {
 
     # Proxy /api/* calls to the API service (strips the /api prefix)
     location /api/ {
+        # Basic auth MUST NOT apply here. HTTP Basic and JWT Bearer share the
+        # single Authorization header, and they cannot coexist: once the SPA
+        # logs in, axios sets `Authorization: Bearer <jwt>` on every XHR, which
+        # replaces the browser's `Authorization: Basic <credentials>`. auth_basic
+        # then rejects the request and answers with WWW-Authenticate: Basic, so
+        # the browser reopens the password dialog on every API call.
+        #
+        # Nothing is lost by turning it off. Every route behind here enforces
+        # its own JWT, and the same API is already reachable without basic auth
+        # through the client dashboard's /api/ proxy, so auth_basic was adding
+        # no protection here, only the loop. It still guards the SPA itself
+        # (the HTML, JS and assets) via the server-level directive above.
+        auth_basic off;
+
         set $api_upstream ${API_HOST};
         rewrite ^/api/(.*)$ /$1 break;
         proxy_pass         $api_upstream;

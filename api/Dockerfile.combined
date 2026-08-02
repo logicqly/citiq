@@ -1,0 +1,41 @@
+# Combined API — admin routes, client routes, /v1 and the inline scheduler in
+# one process.
+#
+# This exists because the Railway trial plan caps a project at 5 services, and
+# the split topology (admin-api + client-api + worker) needs 7 once the two
+# frontends are counted. Running combined trades away process-level credential
+# isolation: a single container now holds the superuser, citiq_admin and
+# citiq_app credentials at once, so a compromise of the client surface is no
+# longer walled off from admin data by the operating system.
+#
+# Row Level Security still applies. Client routes go through the citiq_app
+# engine (DATABASE_URL_APP), which is subject to RLS, so tenant separation is
+# still enforced by PostgreSQL rather than by application code. Keep
+# DATABASE_URL_APP pointed at citiq_app, never at the superuser, or that last
+# guarantee is lost too.
+#
+# To go back to the split topology, deploy Dockerfile.admin-api,
+# Dockerfile.client-api and Dockerfile.worker as separate services and drop
+# this one. See docs/DEPLOYMENT.md.
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+
+# Build context is api/ (Railway root directory = /api).
+COPY pyproject.toml .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -e ".[dev]"
+
+COPY . .
+
+ENV SERVICE_ROLE=combined
+ENV SCHEDULER_ENABLED=true
+
+EXPOSE 8000
+# Migrations, then the RLS role passwords (migration 0011 creates those roles
+# without one), then serve. No --reload: this is the production entrypoint.
+CMD ["sh", "-c", "alembic upgrade head && python -m app.scripts.bootstrap_roles && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

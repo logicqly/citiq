@@ -1,4 +1,4 @@
-# Origo Engine — GEO Monitoring POC
+# Citiq — GEO Monitoring POC
 
 A proof-of-concept pipeline that fans prompts out to Perplexity, OpenAI, and Anthropic,
 analyzes brand citation in every response, and surfaces results in a live React dashboard.
@@ -53,7 +53,7 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
 
 # Run migrations
-DATABASE_URL=postgresql+asyncpg://origo:origo_dev@localhost:5432/origo alembic upgrade head
+DATABASE_URL=postgresql+asyncpg://citiq:citiq_dev@localhost:5432/citiq alembic upgrade head
 
 # Start dev server
 uvicorn app.main:app --reload
@@ -79,7 +79,7 @@ Tests mock all external APIs — they never consume real credits.
 ## Project structure
 
 ```
-origo-engine-poc/
+citiq-poc/
 ├── docker-compose.yml       # One command to start everything
 ├── .env.example             # Copy to .env and fill in keys
 ├── seed_data.yaml           # Demo brand, prompts, competitors

@@ -1,5 +1,5 @@
 # ============================================================
-# Origo Engine — Multi-target Dockerfile
+# Citiq — Multi-target Dockerfile
 #
 # Build targets:
 #   admin-api   — FastAPI serving /admin/* routes, runs migrations
@@ -10,9 +10,9 @@
 #   Uses the default CMD which runs app.main (combined admin+client).
 #
 # Railway build config per service:
-#   origo-admin-api  → DOCKERFILE_TARGET=admin-api
-#   origo-client-api → DOCKERFILE_TARGET=client-api
-#   origo-worker     → DOCKERFILE_TARGET=worker
+#   citiq-admin-api  → DOCKERFILE_TARGET=admin-api
+#   citiq-client-api → DOCKERFILE_TARGET=client-api
+#   citiq-worker     → DOCKERFILE_TARGET=worker
 # ============================================================
 
 FROM python:3.11-slim AS base
@@ -35,7 +35,7 @@ COPY . .
 
 # ============================================================
 # Admin API
-#   - Connects as origo_admin (BYPASSRLS)
+#   - Connects as citiq_admin (BYPASSRLS)
 #   - Runs Alembic migrations on startup
 #   - Runs the inline scheduler
 #   - Serves /admin/* routes only
@@ -50,7 +50,7 @@ CMD ["sh", "-c", "alembic upgrade head && uvicorn app.admin_main:app --host 0.0.
 
 # ============================================================
 # Client API
-#   - Connects as origo_app (subject to RLS)
+#   - Connects as citiq_app (subject to RLS)
 #   - Does NOT run migrations
 #   - Does NOT run the scheduler
 #   - Serves /client/* routes only
@@ -66,7 +66,7 @@ CMD ["sh", "-c", "uvicorn app.client_main:app --host 0.0.0.0 --port ${PORT:-8000
 
 # ============================================================
 # Worker
-#   - Connects as origo_admin (needs cross-client access for scheduling)
+#   - Connects as citiq_admin (needs cross-client access for scheduling)
 #   - Runs arq job queue + cron scheduler
 #   - No HTTP interface. No public port.
 #   - Does NOT run migrations (admin-api owns that)

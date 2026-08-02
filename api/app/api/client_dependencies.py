@@ -12,7 +12,7 @@ Two DB dependencies are provided:
                             Used for auth validation (user/client lookup by JWT claims).
                             These are cross-tenant lookups that must bypass RLS.
 
-  get_client_db          — client engine (origo_app role, RLS enforced).
+  get_client_db          — client engine (citiq_app role, RLS enforced).
                             Used for all business-data endpoints (runs, analyses,
                             recommendations). Sets app.current_client_id so RLS
                             policies automatically filter to the current tenant.
@@ -127,7 +127,7 @@ async def get_client_db(
     """
     Client-scoped DB session with Row Level Security engaged.
 
-    Uses the origo_app DB role (ClientAsyncSessionLocal). Before yielding,
+    Uses the citiq_app DB role (ClientAsyncSessionLocal). Before yielding,
     sets the PostgreSQL runtime parameter app.current_client_id so that
     RLS policies on all tenant-scoped tables restrict rows to the current
     client. Even if application code has a bug, the database enforces the

@@ -1,8 +1,8 @@
 """
-Origo Engine — Client API Service
+Citiq — Client API Service
 
 Serves all /client/* routes.
-Connects to PostgreSQL as origo_app (subject to Row Level Security).
+Connects to PostgreSQL as citiq_app (subject to Row Level Security).
 Does NOT run migrations — admin-api owns that.
 Does NOT run the scheduler — worker service owns that.
 
@@ -13,7 +13,7 @@ and then passed as SET LOCAL app.current_client_id in every data query session
 via get_client_db. The PostgreSQL RLS policies reject any query that would
 return rows from a different tenant.
 
-Database credential: DATABASE_URL_APP (origo_app, RLS enforced)
+Database credential: DATABASE_URL_APP (citiq_app, RLS enforced)
 CORS: allows only CLIENT_FRONTEND_URL
 
 To run locally (port 8002):
@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Origo Engine — Client API",
+    title="Citiq — Client API",
     description="GEO monitoring platform — client dashboard interface",
     version="0.2.0",
     lifespan=lifespan,
@@ -57,28 +57,26 @@ app = FastAPI(
 # ── CORS: client frontend only ────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
+    # The deployed origin is CLIENT_FRONTEND_URL; EXTRA_CORS_ORIGINS covers
+    # staging and preview URLs. No deploy hostname is hardcoded here.
+    allow_origins=list({
         settings.client_frontend_url,
         # Local dev fallbacks
         "http://localhost:5173",
         "http://localhost:3000",
         "http://localhost:8002",
-        # Production client domains
-        "https://origo-web-poc.up.railway.app",
-        "https://origo-poc.up.railway.app",
-        "https://origo-production.up.railway.app",
-        "https://origo-web-production-5353.up.railway.app",
-    ],
+        *settings.extra_cors_origins_list,
+    }),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # ── Dependency override ───────────────────────────────────────────────────────
-# client-api has ONLY DATABASE_URL_APP (origo_app role) — no admin credentials.
-# We override get_db → a plain origo_app session (no RLS client_id set).
+# client-api has ONLY DATABASE_URL_APP (citiq_app role) — no admin credentials.
+# We override get_db → a plain citiq_app session (no RLS client_id set).
 # This works for auth lookups (client_users, clients) because those tables are
-# intentionally excluded from RLS policies, so origo_app can read them freely.
+# intentionally excluded from RLS policies, so citiq_app can read them freely.
 # Data endpoints use get_client_db (defined in client_dependencies.py) which
 # sets SET LOCAL app.current_client_id for RLS enforcement.
 
@@ -100,4 +98,4 @@ app.include_router(client_recommendations_router)
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "service": "origo-client-api"}
+    return {"status": "ok", "service": "citiq-client-api"}

@@ -1,12 +1,12 @@
 """
-Origo Engine — Admin API Service
+Citiq — Admin API Service
 
 Serves all /admin/* routes.
-Connects to PostgreSQL as origo_admin (BYPASSRLS).
+Connects to PostgreSQL as citiq_admin (BYPASSRLS).
 Runs Alembic migrations on startup — this is the ONLY service that does so.
 Runs the inline scheduler (replaces the in-process scheduler from main.py).
 
-Database credential: DATABASE_URL_ADMIN (origo_admin, BYPASSRLS)
+Database credential: DATABASE_URL_ADMIN (citiq_admin, BYPASSRLS)
 CORS: allows only ADMIN_FRONTEND_URL
 
 To run locally (port 8001):
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Origo Engine — Admin API",
+    title="Citiq — Admin API",
     description="GEO monitoring platform — admin interface",
     version="0.2.0",
     lifespan=lifespan,
@@ -86,9 +86,6 @@ _admin_cors_origins = list({
     "http://localhost:5176",
     "http://localhost:5177",
     "http://localhost:8001",
-    # Production admin frontends
-    "https://origo-admin-production.up.railway.app",
-    "https://origo-admin-prod-production.up.railway.app",
     *settings.extra_cors_origins_list,
 })
 app.add_middleware(
@@ -101,7 +98,7 @@ app.add_middleware(
 
 # ── Dependency override: all get_db() calls use the admin engine ──────────────
 # This means every admin route that uses Depends(get_db) automatically gets
-# an origo_admin session (BYPASSRLS) without changing each route file.
+# an citiq_admin session (BYPASSRLS) without changing each route file.
 app.dependency_overrides[get_db] = get_admin_db
 
 # ── Admin routes only — NO client routes imported here ───────────────────────
@@ -146,4 +143,4 @@ register_v1_error_handlers(app)
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "service": "origo-admin-api"}
+    return {"status": "ok", "service": "citiq-admin-api"}

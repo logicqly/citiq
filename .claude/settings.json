@@ -5,9 +5,9 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(docker exec *)",
-      "PowerShell(docker exec origo-engine-api-1 python -m app.scripts.seed_dummy_run 2>&1)",
+      "PowerShell(docker exec citiq-api-1 python -m app.scripts.seed_dummy_run 2>&1)",
       "PowerShell(docker --context default ps --format \"{{.Names}}\" 2>&1)",
-      "Bash(DATABASE_URL=\"postgresql+asyncpg://origo:origo_dev@localhost:5432/origo\" .venv/Scripts/python -m app.scripts.seed_dummy_run)",
+      "Bash(DATABASE_URL=\"postgresql+asyncpg://citiq:citiq_dev@localhost:5432/citiq\" .venv/Scripts/python -m app.scripts.seed_dummy_run)",
       "Bash(curl -s --connect-timeout 3 telnet://localhost:5432)",
       "PowerShell(Test-NetConnection -ComputerName localhost -Port 5432 -WarningAction SilentlyContinue)",
       "PowerShell($r = Test-NetConnection -ComputerName 127.0.0.1 -Port 5432; Write-Output \"Success: $\\($r.TcpTestSucceeded\\)\")",
@@ -20,7 +20,7 @@
       "Bash(.venv/Scripts/python -c ' *)",
       "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" ps --format \"{{.Names}}\\\\t{{.Status}}\" 2>&1)",
       "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" ps -a --format \"{{.Names}}\\\\t{{.Status}}\" 2>&1)",
-      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" logs origo-engine-api-1 --tail 30 2>&1)"
+      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" logs citiq-api-1 --tail 30 2>&1)"
     ]
   }
 }

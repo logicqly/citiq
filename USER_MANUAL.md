@@ -1,8 +1,8 @@
-# Origo Engine — User Manual
+# Citiq — User Manual
 
 **Version:** 0.2.0  
 **Last Updated:** May 2026  
-**Product:** Origo Engine — GEO (Generative Engine Optimization) Monitoring Platform
+**Product:** Citiq — GEO (Generative Engine Optimization) Monitoring Platform
 
 ---
 
@@ -51,7 +51,7 @@
 
 ## 1. Introduction
 
-**Origo Engine** is a GEO (Generative Engine Optimization) monitoring platform. It answers a single critical question for your brand:
+**Citiq** is a GEO (Generative Engine Optimization) monitoring platform. It answers a single critical question for your brand:
 
 > *"When someone asks an AI assistant a question relevant to my industry, does it mention me — and how?"*
 
@@ -63,7 +63,7 @@ The platform works by automatically sending your curated set of questions to fou
 - Which competitors were mentioned instead
 - What topics the AI covered that your brand doesn't address (content gaps)
 
-Results are collected into **Runs**, stored in full, and surfaced through two interfaces: a **Client Dashboard** for your brand team, and an **Admin Dashboard** for Origo internal staff.
+Results are collected into **Runs**, stored in full, and surfaced through two interfaces: a **Client Dashboard** for your brand team, and an **Admin Dashboard** for Logicqly internal staff.
 
 ---
 
@@ -74,7 +74,7 @@ Your Prompts
     │
     ▼
 ┌─────────────────────────────────────────────┐
-│              Origo Engine API               │
+│              Citiq API               │
 │                                             │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
 │  │Perplexity│  │  OpenAI  │  │ Anthropic│  │
@@ -98,7 +98,7 @@ Your Prompts
     ▼
 ┌───────────────┐     ┌────────────────────┐
 │ Client        │     │ Admin Dashboard    │
-│ Dashboard     │     │ (Origo staff only) │
+│ Dashboard     │     │ (Logicqly staff only) │
 └───────────────┘     └────────────────────┘
 ```
 
@@ -113,9 +113,9 @@ There are two separate web interfaces:
 | Interface | Who Uses It | Typical URL |
 |-----------|-------------|-------------|
 | **Client Dashboard** | Your brand / marketing team | `https://your-app.railway.app` |
-| **Admin Dashboard** | Origo internal staff | `https://your-app.railway.app/admin` |
+| **Admin Dashboard** | Logicqly internal staff | `https://your-app.railway.app/admin` |
 
-> **Note:** Exact URLs are provided to you by your Origo account manager.
+> **Note:** Exact URLs are provided to you by your Logicqly account manager.
 
 ---
 
@@ -124,7 +124,7 @@ There are two separate web interfaces:
 ### 4.1 Logging In
 
 1. Navigate to your Client Dashboard URL.
-2. Enter the **email** and **password** provided by your Origo account manager.
+2. Enter the **email** and **password** provided by your Logicqly account manager.
 3. Click **Sign In**.
 
 [SCREENSHOT: Client login page showing email/password fields and Sign In button]
@@ -134,7 +134,7 @@ There are two separate web interfaces:
 **Login troubleshooting:**
 - Passwords are case-sensitive.
 - After 5 failed attempts within 15 minutes, your IP address will be temporarily blocked. Wait 15 minutes before retrying.
-- Contact your Origo account manager if you are locked out.
+- Contact your Logicqly account manager if you are locked out.
 
 ---
 
@@ -237,7 +237,7 @@ A table showing every prompt with columns for each AI platform. Each cell shows:
 
 ## 5. Admin Dashboard Guide
 
-The Admin Dashboard is for Origo internal staff only. It provides full control over clients, prompts, scheduling, and platform health.
+The Admin Dashboard is for Logicqly internal staff only. It provides full control over clients, prompts, scheduling, and platform health.
 
 ### 5.1 Logging In as Admin
 
@@ -516,7 +516,7 @@ Every time your brand appears in an AI response, it is assigned a prominence lev
 | **Mentioned** | Your brand appears briefly, listed among many options |
 | **Not Cited** | Your brand does not appear in this response at all |
 
-**Why this matters:** A "mentioned" citation in a list of 20 brands has very different marketing value than being the primary recommendation. Origo Engine tracks this distinction for every response.
+**Why this matters:** A "mentioned" citation in a list of 20 brands has very different marketing value than being the primary recommendation. Citiq tracks this distinction for every response.
 
 ---
 
@@ -577,7 +577,7 @@ This tells you which competitors are winning AI citations in your space and wher
 
 ## 7. AI Platforms Covered
 
-Origo Engine currently monitors four AI platforms simultaneously:
+Citiq currently monitors four AI platforms simultaneously:
 
 | Platform | Model Used | Notes |
 |----------|-----------|-------|
@@ -620,7 +620,7 @@ After 3 failed retries, the run is marked **Failed** and the scheduler moves on.
 
 ## 9. Administrator Setup Guide
 
-> This section is for Origo engineering/ops staff who deploy and maintain the platform.
+> This section is for Logicqly engineering/ops staff who deploy and maintain the platform.
 
 ### 9.1 Environment Configuration
 
@@ -696,7 +696,7 @@ Admin accounts cannot be created through the UI. Use the CLI:
 ```bash
 cd api
 python -m app.cli create-admin \
-  --email admin@origolabs.ai \
+  --email admin@citiq.ai \
   --password "YourSecurePassword123" \
   --name "Admin Name" \
   --role super_admin
@@ -753,7 +753,7 @@ An alternative seed file for Employment Hero use cases is available: `seed_emplo
 1. Confirm you're using the correct URL for the **Client Dashboard** (not the Admin Dashboard).
 2. Check that Caps Lock is off.
 3. After 5 failed attempts, your IP is blocked for 15 minutes. Wait and retry.
-4. Contact your Origo account manager to reset your password.
+4. Contact your Logicqly account manager to reset your password.
 
 ---
 
@@ -819,9 +819,9 @@ If you see systematic errors, review the **Knowledge Base** for this client. Mak
 | **Cadence** | The frequency of scheduled runs (hourly, daily, weekly, manual) |
 | **Knowledge Base** | Structured brand metadata (profile, audience, voice, context) stored per client |
 | **Tenant** | A client organization; all data is fully isolated per tenant |
-| **Admin Dashboard** | Origo-staff-only interface for managing clients, prompts, schedules, and users |
+| **Admin Dashboard** | Logicqly-staff-only interface for managing clients, prompts, schedules, and users |
 | **Client Dashboard** | Brand-team interface for viewing run results and visibility metrics |
 
 ---
 
-*For support, contact your Origo account manager or raise an issue at the Origo internal tracker.*
+*For support, contact your Logicqly account manager or raise an issue at the Logicqly internal tracker.*

@@ -118,7 +118,7 @@ async def run_seed(yaml_path: str | None = None) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Seed the Origo database from YAML")
+    parser = argparse.ArgumentParser(description="Seed the Citiq database from YAML")
     parser.add_argument("--yaml", help="Path to seed YAML file", default=None)
     args = parser.parse_args()
     asyncio.run(run_seed(args.yaml))

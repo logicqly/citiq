@@ -12,6 +12,10 @@ COPY . .
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
 
+# Client dashboard origin shown to staff when they issue credentials.
+ARG VITE_DASHBOARD_URL
+ENV VITE_DASHBOARD_URL=$VITE_DASHBOARD_URL
+
 RUN npm run build
 
 # ── Stage 2: Serve ────────────────────────────────────────────────────────────

@@ -74,7 +74,7 @@ def upgrade() -> None:
     )
 
     # Tenant isolation, matching every other client-scoped table (0011).
-    # ALTER DEFAULT PRIVILEGES grants origo_app full DML on new tables
+    # ALTER DEFAULT PRIVILEGES grants citiq_app full DML on new tables
     # automatically, so a client-scoped table without a policy would be
     # readable across tenants the moment anything exposes it. Same fail-safe
     # shape as 0011: with app.current_client_id unset the comparison is NULL,
@@ -86,7 +86,7 @@ def upgrade() -> None:
         """
         CREATE POLICY site_snapshots_tenant_isolation ON site_snapshots
             FOR ALL
-            TO origo_app
+            TO citiq_app
             USING (client_id = current_setting('app.current_client_id', true)::uuid)
             WITH CHECK (client_id = current_setting('app.current_client_id', true)::uuid)
         """

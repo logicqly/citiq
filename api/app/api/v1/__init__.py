@@ -1,7 +1,7 @@
 """
 Public /v1 Audit API — Milestone 1.
 
-A thin, token-authenticated REST surface that wraps the existing Origo Engine
+A thin, token-authenticated REST surface that wraps the existing Citiq
 services so external automation can onboard a prospect, load their knowledge
 base + prompts, run an audit, and pull full results without the admin UI.
 

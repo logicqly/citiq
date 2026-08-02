@@ -9,7 +9,7 @@ server {
     gzip_types text/plain text/css application/json application/javascript text/javascript;
 
     # HTTP Basic Auth — first layer of protection in front of the JWT layer
-    auth_basic "Origo Admin — Authorized Access Only";
+    auth_basic "Citiq Admin: Authorized Access Only";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
     # Proxy /api/* calls to the API service

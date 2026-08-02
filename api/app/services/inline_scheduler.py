@@ -27,7 +27,7 @@ from app.services.scheduler_alerts import check_and_alert_on_failures, check_sta
 
 logger = structlog.get_logger()
 
-_LOCK_KEY = "origo:scheduler_lock"
+_LOCK_KEY = "citiq:scheduler_lock"
 _LOCK_TTL = 55
 
 # Keeps references to running tasks so the GC cannot collect them prematurely

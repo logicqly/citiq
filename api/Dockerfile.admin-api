@@ -5,15 +5,18 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 
-# Build context is the repository root; pyproject.toml lives in api/
-COPY api/pyproject.toml .
+# Build context is api/ (Railway root directory = /api).
+COPY pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -e ".[dev]"
 
-COPY api/ .
+COPY . .
 
 ENV SERVICE_ROLE=admin
 ENV SCHEDULER_ENABLED=true
 
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.admin_main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# admin-api owns schema migrations, and then gives the RLS login roles their
+# passwords (migration 0011 creates them without one). Both must finish before
+# client-api and worker can authenticate as citiq_app / citiq_admin.
+CMD ["sh", "-c", "alembic upgrade head && python -m app.scripts.bootstrap_roles && uvicorn app.admin_main:app --host 0.0.0.0 --port ${PORT:-8000}"]

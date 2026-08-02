@@ -1,4 +1,4 @@
-# Origo Engine — Local Development (7-service architecture)
+# Citiq — Local Development (7-service architecture)
 #
 # Mirrors the target Railway deployment. Each service is isolated with only
 # the credentials it needs.
@@ -27,7 +27,7 @@ services:
       # Interpolated from root .env — must match DATABASE_URL below
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-origo}
+      POSTGRES_DB: ${POSTGRES_DB:-citiq}
     ports:
       - "5432:5432"
     volumes:
@@ -52,7 +52,7 @@ services:
       retries: 5
 
   # ── Admin API ─────────────────────────────────────────────────────────────
-  # Connects as origo_admin (BYPASSRLS). Runs migrations on startup.
+  # Connects as citiq_admin (BYPASSRLS). Runs migrations on startup.
   # Serves /admin/* routes. Runs inline scheduler.
   admin-api:
     build:
@@ -65,9 +65,9 @@ services:
       SERVICE_ROLE: admin
       SCHEDULER_ENABLED: "true"
       # Superuser URL for migrations — credentials must match db service above
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-origo}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-citiq}
       # Admin role for runtime queries (BYPASSRLS)
-      DATABASE_URL_ADMIN: postgresql+asyncpg://origo_admin:origo_admin_dev@db:5432/${POSTGRES_DB:-origo}
+      DATABASE_URL_ADMIN: postgresql+asyncpg://citiq_admin:citiq_admin_dev@db:5432/${POSTGRES_DB:-citiq}
       REDIS_URL: redis://redis:6379
       ADMIN_FRONTEND_URL: http://localhost:5174
     ports:
@@ -79,7 +79,7 @@ services:
         condition: service_healthy
 
   # ── Client API ────────────────────────────────────────────────────────────
-  # Connects as origo_app (RLS enforced). No migrations. No scheduler.
+  # Connects as citiq_app (RLS enforced). No migrations. No scheduler.
   # Serves /client/* routes only.
   # CRITICAL: receives NO DATABASE_URL or DATABASE_URL_ADMIN credentials.
   client-api:
@@ -92,8 +92,8 @@ services:
     environment:
       SERVICE_ROLE: client
       SCHEDULER_ENABLED: "false"
-      # App role ONLY — origo_app is subject to RLS
-      DATABASE_URL_APP: postgresql+asyncpg://origo_app:origo_app_dev@db:5432/${POSTGRES_DB:-origo}
+      # App role ONLY — citiq_app is subject to RLS
+      DATABASE_URL_APP: postgresql+asyncpg://citiq_app:citiq_app_dev@db:5432/${POSTGRES_DB:-citiq}
       # No DATABASE_URL (superuser) — this service cannot run migrations
       # No DATABASE_URL_ADMIN — this service cannot bypass RLS
       REDIS_URL: redis://redis:6379
@@ -109,7 +109,7 @@ services:
 
   # ── Worker ────────────────────────────────────────────────────────────────
   # arq-based background worker. Runs scheduled pipeline jobs.
-  # Connects as origo_admin (needs cross-client access to iterate all clients).
+  # Connects as citiq_admin (needs cross-client access to iterate all clients).
   # No HTTP port — communicates via Redis job queue.
   worker:
     build:
@@ -122,7 +122,7 @@ services:
       SERVICE_ROLE: worker
       SCHEDULER_ENABLED: "false"
       # Admin role — worker needs to iterate all clients for scheduling
-      DATABASE_URL_ADMIN: postgresql+asyncpg://origo_admin:origo_admin_dev@db:5432/${POSTGRES_DB:-origo}
+      DATABASE_URL_ADMIN: postgresql+asyncpg://citiq_admin:citiq_admin_dev@db:5432/${POSTGRES_DB:-citiq}
       REDIS_URL: redis://redis:6379
     depends_on:
       admin-api:

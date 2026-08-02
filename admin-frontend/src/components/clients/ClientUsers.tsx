@@ -6,7 +6,11 @@ import { clientUsersApi } from "../../api/client";
 import type { ClientUser } from "../../types";
 import { Chip, EmptyState, Modal, TSwitch, relTime, useConfirm, useToast } from "../ui/ui";
 
-const DASHBOARD_URL = "https://origo-poc.up.railway.app";
+// The client dashboard origin handed to new users. Set per deployment via
+// VITE_DASHBOARD_URL (baked into the bundle at build time) so a redeploy or a
+// custom domain never leaves staff copying a dead link out of the credentials
+// panel.
+const DASHBOARD_URL = import.meta.env.VITE_DASHBOARD_URL ?? "http://localhost:5173";
 
 function generatePassword(): string {
   const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$";

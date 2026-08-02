@@ -3,12 +3,12 @@ import { platMeta } from "./ui";
 
 // Maps common error substrings to actionable user-facing guidance
 const HINTS: Array<[string, string]> = [
-  ["credit balance is too low", "resolved by the Origo team before the next run"],
-  ["upgrade or purchase credits", "resolved by the Origo team before the next run"],
-  ["quota", "API quota exceeded, resolved by the Origo team"],
-  ["rate limit", "too many requests, resolved by the Origo team"],
-  ["authentication", "authentication issue, resolved by the Origo team"],
-  ["invalid api key", "authentication issue, resolved by the Origo team"],
+  ["credit balance is too low", "resolved by the Logicqly team before the next run"],
+  ["upgrade or purchase credits", "resolved by the Logicqly team before the next run"],
+  ["quota", "API quota exceeded, resolved by the Logicqly team"],
+  ["rate limit", "too many requests, resolved by the Logicqly team"],
+  ["authentication", "authentication issue, resolved by the Logicqly team"],
+  ["invalid api key", "authentication issue, resolved by the Logicqly team"],
 ];
 
 function hint(message: string): string | null {

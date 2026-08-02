@@ -1,5 +1,5 @@
 """
-arq worker configuration for the Origo scheduler.
+arq worker configuration for the Citiq scheduler.
 
 Run with:
     arq app.scheduler.worker.WorkerSettings

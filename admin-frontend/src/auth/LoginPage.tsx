@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { authApi } from "../api/client";
 import { useAuth } from "./AuthContext";
-import { OrigoMark } from "../components/ui/mark";
+import { CitiqMark } from "../components/ui/mark";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -34,10 +34,10 @@ export function LoginPage() {
     <div className="login">
       <div className="lcard">
         <div className="lm" style={{ width: 44, margin: "0 auto 16px" }}>
-          <OrigoMark size={44} />
+          <CitiqMark size={44} />
         </div>
-        <h1>Origo Admin</h1>
-        <div className="ls">Be the <i>source</i>.</div>
+        <h1>Citiq Admin</h1>
+        <div className="ls">Citation visibility across <i>AI answers</i>.</div>
 
         <form onSubmit={handleSubmit}>
           <div className="fld">
@@ -48,7 +48,7 @@ export function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@origolabs.ai"
+              placeholder="admin@citiq.ai"
             />
           </div>
           <div className="fld">

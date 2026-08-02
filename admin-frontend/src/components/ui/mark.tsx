@@ -1,5 +1,5 @@
-// The Origo mark, used in the sidebar brand and the login card.
-export function OrigoMark({ size }: { size?: number }) {
+// The Citiq mark, used in the sidebar brand and the login card.
+export function CitiqMark({ size }: { size?: number }) {
   const style = size ? { width: size, height: size, flex: `0 0 ${size}px` } : undefined;
   return (
     <svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg" style={style}>

@@ -1,4 +1,4 @@
-# Demo seed data for Origo Engine POC
+# Demo seed data for Citiq POC
 # This file is loaded by `python -m app.scripts.seed` inside the api container
 
 client:

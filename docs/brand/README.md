@@ -1,29 +1,31 @@
-# Origo brand assets
+# Citiq brand assets
 
-Canonical brand assets for Origo (origolabs.ai), extracted from the 2026 brand
-kit. The full kit is in [Origo-Brand-Kit.pdf](Origo-Brand-Kit.pdf); this file
-summarizes the parts engineers need without opening the PDF.
+Design-system reference for Citiq (citiq.ai), a Logicqly product. This file
+summarizes the parts engineers need: the tokens below are what both frontends
+actually implement in their `index.css`.
 
-## Assets
+## Mark: placeholder, pending replacement
 
-| File | What it is |
+> **The mark shipped today is inherited placeholder geometry, not the Citiq
+> mark.** It came from the codebase Citiq was forked from and is kept only so
+> the UI is not blank while the real mark is designed. Replace it before any
+> public launch.
+
+Swapping it is four edits, all rendering the same paths:
+
+| Where | File |
 |---|---|
-| `origo-mark.svg` | The mark: a concentric O that brings a source into focus, with a citation marker at its edge. White fill, 500x500 viewBox. |
-| `origo-lockup.svg` | The wordmark: the mark as an enlarged first letter followed by "rigo" (Inter 600, tight tracking). White fill. |
-| `Origo-Brand-Kit.pdf` | The full 13-section brand kit (logo rules, color, type, components, voice). |
+| Admin app component | `admin-frontend/src/components/ui/mark.tsx` (`CitiqMark`, `currentColor` fill) |
+| Client app component | `web/src/components/ui.tsx` (`CitiqMark`, same) |
+| Favicons | `admin-frontend/public/favicon.svg`, `web/public/favicon.svg` |
+| Empty-state watermark | inline data-URI in `admin-frontend/src/index.css` and `web/src/index.css` |
 
-The original delivery also contained `origo-o.svg` and `origo-wordmark.svg`;
-those were byte-identical duplicates of the mark and lockup and were not kept.
+`Origo-Brand-Kit.pdf`, `origo-mark.svg`, and `origo-lockup.svg` in this folder
+are the *previous* product's assets. They are retained only as the source of
+the placeholder geometry and carry no Citiq licence; delete them once the Citiq
+mark lands.
 
-## Where the brand lives in this repo
-
-- Admin app mark component: `admin-frontend/src/components/ui/mark.tsx`
-  (`OrigoMark`, `currentColor` fill — recolors with the surrounding text).
-- Client app mark component: `web/src/components/ui.tsx` (`OrigoMark`, same).
-- Favicons: `admin-frontend/public/favicon.svg` and `web/public/favicon.svg`,
-  both the white mark on a pure-black rounded tile.
-
-## Logo rules (from the kit)
+## Logo rules (apply to the replacement mark)
 
 - Monochrome only: render white on near-black, or invert to black on white.
 - Never recolor, stretch, rotate, add effects, or resize the mark out of
@@ -67,7 +69,10 @@ Both apps load these from Google Fonts in their `index.html`.
 
 ## Voice
 
-Taglines: "Be the source." / "Engineered from origin."
+The login taglines currently read "Citation visibility across AI answers" and
+"Citiq by Logicqly, citiq.ai". These are plain descriptors, not final brand
+copy; replace them alongside the mark. They live in
+`web/src/auth/LoginPage.tsx` and `admin-frontend/src/auth/LoginPage.tsx`.
 
 Concrete, plain, confident. Speak to the reader as "you". Sentence case
 everywhere. Lead with the claim. One strong number beats five weak ones.

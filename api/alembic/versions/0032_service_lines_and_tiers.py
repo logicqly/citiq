@@ -32,7 +32,7 @@ cannot be inferred from a response, so it has to be supplied:
 
 Both default to empty, which is the honest pre-population state: no service
 line and no tiers means every response clusters as "unassigned" and ordering
-falls back to breadth alone. Nothing breaks before Origo populates them.
+falls back to breadth alone. Nothing breaks before Logicqly populates them.
 
 Guarded with IF NOT EXISTS for idempotency.
 """

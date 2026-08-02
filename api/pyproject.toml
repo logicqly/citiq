@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "origo-api"
+name = "citiq-api"
 version = "0.1.0"
-description = "Origo Engine API — GEO monitoring POC"
+description = "Citiq API — GEO monitoring POC"
 requires-python = ">=3.11"
 dependencies = [
     # Web framework

@@ -3,7 +3,7 @@ Admin CLI — create the first admin user without a registration endpoint.
 
 Usage:
     python -m app.cli create-admin \
-        --email admin@origolabs.ai \
+        --email admin@citiq.ai \
         --password <secure-password> \
         --name "Admin User" \
         [--role super_admin]
@@ -47,7 +47,7 @@ async def _create_admin(email: str, password: str, name: str, role: str) -> None
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Origo admin CLI")
+    parser = argparse.ArgumentParser(description="Citiq admin CLI")
     sub = parser.add_subparsers(dest="command")
 
     create = sub.add_parser("create-admin", help="Create an admin user")

@@ -47,7 +47,7 @@ def _jittered_wait(retry_state: RetryCallState) -> float:
 
 def with_retry(func):
     """
-    Decorator that applies the standard Origo retry policy to an async function.
+    Decorator that applies the standard Citiq retry policy to an async function.
 
     Usage:
         @with_retry

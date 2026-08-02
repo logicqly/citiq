@@ -5,7 +5,7 @@ import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../lib/theme";
-import { OrigoMark } from "./ui";
+import { CitiqMark } from "./ui";
 
 export function DashboardLayout() {
   const { user, logout, display } = useAuth();
@@ -26,7 +26,7 @@ export function DashboardLayout() {
     <div style={{ minHeight: "100vh" }}>
       <header className="top">
         <NavLink to="/dashboard" className="brand" end>
-          <OrigoMark size={24} />
+          <CitiqMark size={24} />
           <div className="hidden sm:block">
             <div className="t1">GEO MONITOR</div>
             <div className="t2">{user?.client_name}</div>

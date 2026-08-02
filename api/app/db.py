@@ -1,5 +1,5 @@
 """
-Database engine configuration for Origo Engine services.
+Database engine configuration for Citiq services.
 
 Three engines are available depending on which service is running:
 
@@ -7,11 +7,11 @@ Three engines are available depending on which service is running:
                                         Used for Alembic migrations (admin-api only).
                                         Also used as the fallback in combined/local dev.
 
-  admin_engine / AdminAsyncSessionLocal  — origo_admin role (DATABASE_URL_ADMIN)
+  admin_engine / AdminAsyncSessionLocal  — citiq_admin role (DATABASE_URL_ADMIN)
                                            BYPASSRLS. Used by admin-api routes and worker.
                                            Falls back to DATABASE_URL in local dev.
 
-  client_engine / ClientAsyncSessionLocal — origo_app role (DATABASE_URL_APP)
+  client_engine / ClientAsyncSessionLocal — citiq_app role (DATABASE_URL_APP)
                                              Subject to RLS. Used by client-api routes.
                                              Falls back to DATABASE_URL in local dev.
 
@@ -41,7 +41,7 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 
-# ── Admin engine (origo_admin role, BYPASSRLS) ────────────────────────────────
+# ── Admin engine (citiq_admin role, BYPASSRLS) ────────────────────────────────
 # admin-api and worker connect via this engine.
 # Falls back to the superuser URL in combined/local mode.
 
@@ -59,7 +59,7 @@ AdminAsyncSessionLocal = async_sessionmaker(
 )
 
 
-# ── Client engine (origo_app role, RLS enforced) ─────────────────────────────
+# ── Client engine (citiq_app role, RLS enforced) ─────────────────────────────
 # client-api connects via this engine.
 # Falls back to the superuser URL in combined/local mode.
 # Every session MUST have app.current_client_id set via SET LOCAL before use.
@@ -101,7 +101,7 @@ async def get_db() -> AsyncSession:
 
 async def get_admin_db() -> AsyncSession:
     """
-    Admin DB session (origo_admin role, BYPASSRLS).
+    Admin DB session (citiq_admin role, BYPASSRLS).
 
     Used by admin-api routes and the worker service.
     admin_main.py registers this as the override for get_db so that all

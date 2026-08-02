@@ -2,7 +2,7 @@
 
 Client spec (2026-07-29), point 6: recommendation clusters are ordered by
 service tier first (Core, then Secondary, then Bonus) and by breadth second.
-The tiers are supplied by Origo on the client knowledge base, because which
+The tiers are supplied by Logicqly on the client knowledge base, because which
 practice areas actually earn the money is private commercial information the
 engine has no way to infer.
 
@@ -27,7 +27,7 @@ BONUS = "bonus"
 UNTIERED = "untiered"
 
 # Ordering rank. Untiered sorts last: an unassigned service line has no stated
-# commercial value, so it must not outrank one Origo explicitly called Core.
+# commercial value, so it must not outrank one Logicqly explicitly called Core.
 _RANK = {CORE: 0, SECONDARY: 1, BONUS: 2, UNTIERED: 3}
 
 # Spelling variants accepted for each canonical tier.

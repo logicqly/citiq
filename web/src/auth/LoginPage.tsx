@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRoundedIcon from "@mui/icons-material/VisibilityOffRounded";
 import { useAuth } from "./AuthContext";
-import { OrigoMark } from "../components/ui";
+import { CitiqMark } from "../components/ui";
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -42,10 +42,10 @@ export function LoginPage() {
     <div className="login">
       <div className="lcard">
         <div style={{ width: 40, margin: "0 auto 16px", color: "var(--white)" }}>
-          <OrigoMark size={40} />
+          <CitiqMark size={40} />
         </div>
         <h1>GEO Monitor</h1>
-        <div className="ls">Be the <i>source</i>.</div>
+        <div className="ls">Citation visibility across <i>AI answers</i>.</div>
 
         <form onSubmit={handleSubmit}>
           <div className="fld">
@@ -95,7 +95,7 @@ export function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <div className="footer-note" style={{ textAlign: "center" }}>Engineered from origin, origolabs.ai</div>
+        <div className="footer-note" style={{ textAlign: "center" }}>Citiq by Logicqly, citiq.ai</div>
       </div>
     </div>
   );

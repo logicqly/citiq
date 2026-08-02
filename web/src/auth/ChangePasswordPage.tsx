@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import { OrigoMark } from "../components/ui";
+import { CitiqMark } from "../components/ui";
 
 const API = import.meta.env.VITE_API_URL ?? "";
 
@@ -53,7 +53,7 @@ export function ChangePasswordPage() {
     <div className="login">
       <div className="lcard">
         <div style={{ width: 40, margin: "0 auto 16px", color: "var(--white)" }}>
-          <OrigoMark size={40} />
+          <CitiqMark size={40} />
         </div>
         <h1>Change password</h1>
         <div className="ls">

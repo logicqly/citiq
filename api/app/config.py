@@ -25,12 +25,12 @@ class Settings(BaseSettings):
 
     # ── Database connections ──────────────────────────────────────────────────
     # DATABASE_URL  — superuser, used for Alembic migrations (admin-api only)
-    # DATABASE_URL_ADMIN — origo_admin role, BYPASSRLS (admin-api + worker)
-    # DATABASE_URL_APP   — origo_app role, subject to RLS (client-api only)
+    # DATABASE_URL_ADMIN — citiq_admin role, BYPASSRLS (admin-api + worker)
+    # DATABASE_URL_APP   — citiq_app role, subject to RLS (client-api only)
     #
     # In combined/local mode, all three can be the same URL.
     # In production, each service only receives the credential it needs.
-    database_url: str = "postgresql+asyncpg://origo:origo_dev@localhost:5432/origo"
+    database_url: str = "postgresql+asyncpg://citiq:citiq_dev@localhost:5432/citiq"
     database_url_admin: str = ""  # Falls back to database_url if empty
     database_url_app: str = ""    # Falls back to database_url if empty
 
@@ -319,7 +319,7 @@ class Settings(BaseSettings):
     # metadata live near the top; full-page text is not needed).
     site_inventory_page_max_bytes: int = 400000
     site_inventory_user_agent: str = (
-        "OrigoEngineBot/1.0 (+https://origo.engine; GEO audit for the site owner)"
+        "CitiqBot/1.0 (+https://citiq.ai; GEO audit for the site owner)"
     )
 
     @field_validator(

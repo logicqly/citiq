@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 // recalc and the swap snaps instead of fading. It is removed right after so
 // hover transitions are never affected.
 
-const STORAGE_KEY = "origo-admin-theme";
+const STORAGE_KEY = "citiq-admin-theme";
 
 export type ThemeName = "dark" | "light";
 

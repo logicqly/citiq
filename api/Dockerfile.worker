@@ -8,14 +8,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps first (cache layer)
+# Build context is api/ (Railway root directory = /api).
 COPY pyproject.toml .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -e ".[dev]"
 
-# Copy source
 COPY . .
 
+ENV SERVICE_ROLE=worker
+ENV SCHEDULER_ENABLED=false
+
 # No exposed ports — the worker does not accept HTTP traffic.
-# Use ; not && so a no-op migration doesn't abort the worker start.
-CMD ["sh", "-c", "alembic upgrade head; arq app.scheduler.worker.WorkerSettings"]
+#
+# The worker deliberately does NOT run migrations: admin-api owns
+# `alembic upgrade head`. Two services racing it on a cold deploy is unsafe
+# because migration 0020 adds an enum value in an autocommit block, which
+# PostgreSQL cannot roll back with the surrounding transaction.
+CMD ["arq", "app.scheduler.worker.WorkerSettings"]

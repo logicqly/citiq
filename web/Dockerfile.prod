@@ -5,6 +5,13 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install --production=false
 COPY . .
+
+# Baked into the static bundle at build time. Set to /api so the browser calls
+# this container's own nginx, which proxies to ${API_HOST} on the private
+# network; the API then needs no public domain of its own.
+ARG VITE_API_URL=/api
+ENV VITE_API_URL=$VITE_API_URL
+
 RUN npm run build
 
 # ── Stage 2: serve with nginx ─────────────────────────────────────────────────

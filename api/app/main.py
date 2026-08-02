@@ -43,7 +43,7 @@ logger = structlog.get_logger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("origo_api_startup", log_level=settings.log_level)
+    logger.info("citiq_api_startup", log_level=settings.log_level)
 
     scheduler_task = None
     if settings.scheduler_enabled:
@@ -58,36 +58,36 @@ async def lifespan(app: FastAPI):
     if scheduler_task is not None:
         scheduler_task.cancel()
         await asyncio.gather(scheduler_task, return_exceptions=True)
-    logger.info("origo_api_shutdown")
+    logger.info("citiq_api_shutdown")
 
 
 app = FastAPI(
-    title="Origo Engine API",
+    title="Citiq API",
     description="GEO monitoring platform",
     version="0.2.0",
     lifespan=lifespan,
 )
 
+# Deployed origins come from the environment, never from source: CLIENT_FRONTEND_URL
+# and ADMIN_FRONTEND_URL are set per deployment, with EXTRA_CORS_ORIGINS
+# (comma-separated) for staging and preview URLs.
+_cors_origins = list({
+    settings.client_frontend_url,
+    settings.admin_frontend_url,
+    # Local dev — either dashboard on any vite port
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:5176",
+    "http://localhost:5177",
+    "http://localhost:5178",
+    "http://localhost:3000",
+    *settings.extra_cors_origins_list,
+})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        # Local dev — client dashboard (any vite port)
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-        "http://localhost:5176",
-        "http://localhost:5177",
-        "http://localhost:5178",
-        "http://localhost:3000",
-        # Production — client dashboard
-        "https://origo-web-poc.up.railway.app",
-        "https://origo-poc.up.railway.app",
-        "https://origo-production.up.railway.app",
-        "https://origo-web-production-5353.up.railway.app",
-        # Production — admin frontend
-        "https://origo-admin-production.up.railway.app",
-        "https://origo-admin-production.up.railway.app/",
-    ],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -126,4 +126,4 @@ register_v1_error_handlers(app)
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "service": "origo-api"}
+    return {"status": "ok", "service": "citiq-api"}

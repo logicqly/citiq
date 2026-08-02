@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
-// ── Origo mark ────────────────────────────────────────────────────────────────
+// ── Citiq mark ────────────────────────────────────────────────────────────────
 
-export function OrigoMark({ size }: { size?: number }) {
+export function CitiqMark({ size }: { size?: number }) {
   const style = size ? { width: size, height: size, flex: `0 0 ${size}px` } : undefined;
   return (
     <svg viewBox="0 0 500 500" fill="none" xmlns="http://www.w3.org/2000/svg" style={style}>
@@ -61,11 +61,11 @@ export function RunStatusChip({ status }: { status: string }) {
 }
 
 // Client-friendly lifecycle labels (read-only view):
-// pending -> "In review at Origo", approved -> "In production",
+// pending -> "In review at Logicqly", approved -> "In production",
 // implemented -> "Published".
 export const LIFE_CLIENT: Record<string, { tone: "" | "good" | "warn" | "bad"; label: string }> = {
-  pending: { tone: "warn", label: "In review at Origo" },
-  revision_requested: { tone: "warn", label: "In review at Origo" },
+  pending: { tone: "warn", label: "In review at Logicqly" },
+  revision_requested: { tone: "warn", label: "In review at Logicqly" },
   approved: { tone: "", label: "In production" },
   implemented: { tone: "good", label: "Published" },
 };

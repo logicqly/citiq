@@ -1,4 +1,4 @@
-# Origo Engine — Project Conventions
+# Citiq — Project Conventions
 
 ## UI: icons and symbols (MANDATORY)
 

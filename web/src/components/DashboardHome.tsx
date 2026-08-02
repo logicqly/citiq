@@ -9,7 +9,7 @@ import { SummaryCards } from "./SummaryCards";
 import { PromptTable } from "./PromptTable";
 import { PlatformErrorBanner } from "./PlatformErrorBanner";
 import type { DashboardSummary, RunSummaryResponse } from "../lib/types";
-import { AreaChart, Chip, EmptyState, OrigoMark, pctFmt, relTime } from "./ui";
+import { AreaChart, Chip, EmptyState, CitiqMark, pctFmt, relTime } from "./ui";
 
 const ACTIVE = new Set(["pending", "running"]);
 // Terminal statuses that carry viewable results (partial = finished with drops).
@@ -225,7 +225,7 @@ export function DashboardHome() {
         <div className="panel">
           <div className="emptystate" style={{ padding: "64px 44px" }}>
             <div style={{ width: 40, margin: "0 auto 16px", color: "var(--ink3)" }}>
-              <OrigoMark size={40} />
+              <CitiqMark size={40} />
             </div>
             <p style={{ fontSize: 14, fontWeight: 600, color: "var(--ink1)" }}>
               Your AI visibility monitoring is being set up

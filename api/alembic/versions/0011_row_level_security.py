@@ -5,16 +5,16 @@ Revises: 0010
 Create Date: 2026-05-23
 
 Creates two database roles:
-  origo_admin  — BYPASSRLS, used by admin-api and worker services
-  origo_app    — subject to RLS, used by client-api service
+  citiq_admin  — BYPASSRLS, used by admin-api and worker services
+  citiq_app    — subject to RLS, used by client-api service
 
 Enables RLS on all tenant-scoped tables. The policy uses
 app.current_client_id (a PostgreSQL runtime parameter) which the
 client-api sets via SET LOCAL before executing queries. Rows are
 only visible when their client_id matches the current setting.
 
-The admin-api connects as origo_admin (BYPASSRLS) and never sees
-this restriction. The client-api connects as origo_app and is
+The admin-api connects as citiq_admin (BYPASSRLS) and never sees
+this restriction. The client-api connects as citiq_app and is
 physically incapable of reading another tenant's rows, even if
 application code has a bug.
 
@@ -57,9 +57,9 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF NOT EXISTS (
-                SELECT FROM pg_catalog.pg_roles WHERE rolname = 'origo_app'
+                SELECT FROM pg_catalog.pg_roles WHERE rolname = 'citiq_app'
             ) THEN
-                CREATE ROLE origo_app LOGIN;
+                CREATE ROLE citiq_app LOGIN;
             END IF;
         END
         $$
@@ -69,41 +69,41 @@ def upgrade() -> None:
         DO $$
         BEGIN
             IF NOT EXISTS (
-                SELECT FROM pg_catalog.pg_roles WHERE rolname = 'origo_admin'
+                SELECT FROM pg_catalog.pg_roles WHERE rolname = 'citiq_admin'
             ) THEN
-                CREATE ROLE origo_admin LOGIN BYPASSRLS;
+                CREATE ROLE citiq_admin LOGIN BYPASSRLS;
             END IF;
         END
         $$
     """))
 
-    # Ensure origo_admin has BYPASSRLS even if it already existed without it
-    conn.execute(sa.text("ALTER ROLE origo_admin BYPASSRLS"))
+    # Ensure citiq_admin has BYPASSRLS even if it already existed without it
+    conn.execute(sa.text("ALTER ROLE citiq_admin BYPASSRLS"))
 
     # ── Grant database-level access ───────────────────────────────────────────
     # Get the current database name dynamically
     db_name = conn.execute(sa.text("SELECT current_database()")).scalar()
-    conn.execute(sa.text(f"GRANT CONNECT ON DATABASE {db_name} TO origo_app, origo_admin"))
-    conn.execute(sa.text("GRANT USAGE ON SCHEMA public TO origo_app, origo_admin"))
+    conn.execute(sa.text(f"GRANT CONNECT ON DATABASE {db_name} TO citiq_app, citiq_admin"))
+    conn.execute(sa.text("GRANT USAGE ON SCHEMA public TO citiq_app, citiq_admin"))
 
     # Grant table privileges
     conn.execute(sa.text(
         "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public "
-        "TO origo_app, origo_admin"
+        "TO citiq_app, citiq_admin"
     ))
     conn.execute(sa.text(
         "GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public "
-        "TO origo_app, origo_admin"
+        "TO citiq_app, citiq_admin"
     ))
 
     # Ensure future tables also get granted
     conn.execute(sa.text(
         "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-        "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO origo_app, origo_admin"
+        "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO citiq_app, citiq_admin"
     ))
     conn.execute(sa.text(
         "ALTER DEFAULT PRIVILEGES IN SCHEMA public "
-        "GRANT USAGE, SELECT ON SEQUENCES TO origo_app, origo_admin"
+        "GRANT USAGE, SELECT ON SEQUENCES TO citiq_app, citiq_admin"
     ))
 
     # ── Enable RLS on tenant-scoped tables ────────────────────────────────────
@@ -131,7 +131,7 @@ def upgrade() -> None:
         conn.execute(sa.text(f"""
             CREATE POLICY {policy_name} ON {table}
                 FOR ALL
-                TO origo_app
+                TO citiq_app
                 USING (
                     client_id = current_setting('app.current_client_id', true)::uuid
                 )
@@ -140,8 +140,8 @@ def upgrade() -> None:
                 )
         """))
 
-    # ── origo_admin bypasses RLS entirely (set at role level above) ───────────
-    # No per-table policies needed for origo_admin.
+    # ── citiq_admin bypasses RLS entirely (set at role level above) ───────────
+    # No per-table policies needed for citiq_admin.
 
 
 def downgrade() -> None:
@@ -159,9 +159,9 @@ def downgrade() -> None:
 
     # Revoke privileges
     conn.execute(sa.text(
-        "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM origo_app, origo_admin"
+        "REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM citiq_app, citiq_admin"
     ))
     conn.execute(sa.text(
-        "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM origo_app, origo_admin"
+        "REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM citiq_app, citiq_admin"
     ))
-    conn.execute(sa.text("REVOKE USAGE ON SCHEMA public FROM origo_app, origo_admin"))
+    conn.execute(sa.text("REVOKE USAGE ON SCHEMA public FROM citiq_app, citiq_admin"))

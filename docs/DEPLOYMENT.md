@@ -122,6 +122,26 @@ The tradeoff is that an unreachable API now yields a 502 from nginx instead of
 a container that refuses to start. That is the behaviour you want: the SPA
 still loads and only API calls fail.
 
+### `API_HOST` must be a reference, not a literal
+
+**A service's private domain is pinned at creation and does not follow
+renames.** The API service was seeded as `citiq`, then renamed to `admin-api`
+and finally to `api`, and its `RAILWAY_PRIVATE_DOMAIN` stayed
+`citiq.railway.internal` throughout. Hardcoding `api.railway.internal` produced
+`could not be resolved (3: Host not found)` and a 502 on every proxied call,
+with nothing in the service list hinting at the mismatch.
+
+Both frontends therefore set:
+
+```
+API_HOST=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000
+```
+
+Railway resolves that reference at deploy time, so the value tracks whatever
+the API's private domain actually is. Check it with the service's
+`RAILWAY_PRIVATE_DOMAIN` variable rather than assuming it matches the service
+name.
+
 ## Cold-start order
 
 `api` must reach a healthy state before the frontends are useful, because it

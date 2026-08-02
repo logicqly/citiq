@@ -1,0 +1,80 @@
+import uuid
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import text as sa_text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.db import Base
+
+
+class Client(Base):
+    __tablename__ = "clients"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        primary_key=True, default=uuid.uuid4, server_default=sa_text("gen_random_uuid()")
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    slug: Mapped[str] = mapped_column(String(100), nullable=False, unique=True, index=True)
+    industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    # "prospect" | "client" — set by the /v1 Audit API onboarding flow.
+    record_type: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="prospect", server_default="prospect"
+    )
+    config: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("admin_users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(server_default=sa_text("now()"), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        server_default=sa_text("now()"), onupdate=datetime.utcnow, nullable=False
+    )
+
+    # ── Per-client AI model overrides ─────────────────────────────────────────
+    platform_model_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # ── Per-client "Client display" override ──────────────────────────────────
+    # NULL: the client follows the global display defaults (system_settings.
+    # display_defaults). A dict: the client has been customised and is detached,
+    # so later changes to the global defaults no longer affect it.
+    display_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+
+    # ── Recommendations: generate automatically after a run's analysis? ──────
+    # The per-client default for the trigger toggle. False means runs finish
+    # with recommendations pending until an admin presses Generate.
+    auto_generate_recommendations: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=sa_text("true")
+    )
+
+    # ── Client timezone (IANA identifier, e.g. "Asia/Colombo") ───────────────
+    timezone: Mapped[str] = mapped_column(String(60), nullable=False, default="UTC", server_default="UTC")
+
+    # ── Schedule configuration ─────────────────────────────────────────────────
+    schedule_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sa_text("false")
+    )
+    schedule_cadence: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="daily", server_default="daily"
+    )
+    schedule_hour: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=2, server_default="2"
+    )
+    schedule_minute: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    schedule_day_of_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_scheduled_run_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    next_scheduled_run_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    # Relationships
+    prompts: Mapped[list["Prompt"]] = relationship(back_populates="client")  # noqa: F821
+    competitors: Mapped[list["Competitor"]] = relationship(back_populates="client")  # noqa: F821
+    runs: Mapped[list["Run"]] = relationship(back_populates="client")  # noqa: F821
+    knowledge_base: Mapped["ClientKnowledgeBase | None"] = relationship(  # noqa: F821
+        back_populates="client", uselist=False
+    )
+    users: Mapped[list["ClientUser"]] = relationship(back_populates="client")  # noqa: F821

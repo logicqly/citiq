@@ -1,0 +1,31 @@
+# Demo seed data for Origo Engine POC
+# This file is loaded by `python -m app.scripts.seed` inside the api container
+
+client:
+  name: "Acme Analytics"
+  slug: "acme-analytics"
+
+competitors:
+  - "DataDog"
+  - "New Relic"
+  - "Splunk"
+  - "Grafana"
+  - "Dynatrace"
+
+prompts:
+  - text: "What are the best analytics platforms for monitoring cloud infrastructure?"
+    category: "Discovery"
+  - text: "Compare the top observability tools for DevOps teams in 2024"
+    category: "Comparison"
+  - text: "What tool should I use for application performance monitoring?"
+    category: "Fit"
+  - text: "How do I monitor microservices in a Kubernetes environment?"
+    category: "Discovery"
+  - text: "What are the leading platforms for log management and analysis?"
+    category: "Discovery"
+  - text: "Which observability platform has the best pricing for startups?"
+    category: "Comparison"
+  - text: "What is the best tool for distributed tracing?"
+    category: "Fit"
+  - text: "How do enterprises choose between APM vendors?"
+    category: "Discovery"

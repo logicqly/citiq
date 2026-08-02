@@ -1,0 +1,13 @@
+Write a short, professional technical document (1-2 pages) explaining why running 50 prompts across 4 AI platforms (OpenAI, Anthropic, Perplexity, Gemini) cannot reliably complete within 2 minutes. The audience is a non-technical client.
+
+The document should cover:
+
+1. How a run works - briefly explain that 50 prompts are sent to 4 platforms simultaneously (200 total API calls), then each response goes through an analysis phase, then a recommendation generation phase. These three phases run sequentially - phase 2 cannot start until phase 1 is fully done.
+
+2. Why 2 minutes is not achievable - explain these specific constraints: Perplexity enforces a hard limit of 50 requests per minute. Since the client has exactly 50 prompts, the system is operating at the absolute ceiling of Perplexity's allowed throughput. Any slow response or retry pushes processing into the next minute window. Gemini allows 60 requests per minute - only slightly above the 50-prompt count, leaving no headroom. The analysis phase alone requires approximately 200 additional AI calls (one per response) and takes a minimum of 30 seconds under ideal conditions. The recommendation generation phase adds further time after analysis.
+
+3. Realistic timing - state that under normal conditions a 50-prompt run completes in approximately 1 minute 40 seconds to 2 minutes 45 seconds, and can exceed that if any platform responds slowly or retries occur.
+
+4. What would improve speed - upgrading to a higher Perplexity API tier (which raises the per-minute request limit) is the single most impactful change. Reducing the prompt count below 50 would also help.
+
+Keep the tone factual and straightforward. Avoid jargon. Use short paragraphs. No need for code or technical diagrams.

@@ -1,0 +1,32 @@
+client:
+  name: "Employment Hero"
+  slug: "employment-hero"
+
+competitors:
+  - "BambooHR"
+  - "Rippling"
+  - "HiBob"
+  - "ELMO Software"
+  - "Deputy"
+
+prompts:
+  - text: "Best HR software for small businesses in Australia"
+    category: "Discovery"
+  - text: "Best payroll software for Australian companies"
+    category: "Discovery"
+  - text: "HR and payroll software recommended for Australian businesses"
+    category: "Shortlist"
+  - text: "Employment Hero alternatives in Australia"
+    category: "Comparison"
+  - text: "Top workforce management tools in Australia"
+    category: "Discovery"
+  - text: "Best employee onboarding software Australia"
+    category: "Discovery"
+  - text: "HR software for Australian companies with 50 to 200 employees"
+    category: "Criteria"
+  - text: "Which HR software do Australian accountants recommend"
+    category: "Shortlist"
+  - text: "Best cloud HR software Australia 2026"
+    category: "Discovery"
+  - text: "Top HR platforms for growing Australian businesses"
+    category: "Discovery"

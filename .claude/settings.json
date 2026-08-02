@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s 'http://localhost:8000/clients/bbf2cc05-d766-465e-acc0-fd3ab30feed6/audit-logs?entity_type=prompt')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(docker exec *)",
+      "PowerShell(docker exec origo-engine-api-1 python -m app.scripts.seed_dummy_run 2>&1)",
+      "PowerShell(docker --context default ps --format \"{{.Names}}\" 2>&1)",
+      "Bash(DATABASE_URL=\"postgresql+asyncpg://origo:origo_dev@localhost:5432/origo\" .venv/Scripts/python -m app.scripts.seed_dummy_run)",
+      "Bash(curl -s --connect-timeout 3 telnet://localhost:5432)",
+      "PowerShell(Test-NetConnection -ComputerName localhost -Port 5432 -WarningAction SilentlyContinue)",
+      "PowerShell($r = Test-NetConnection -ComputerName 127.0.0.1 -Port 5432; Write-Output \"Success: $\\($r.TcpTestSucceeded\\)\")",
+      "PowerShell(wsl -- docker ps --format \"{{.Names}}\" 2>&1)",
+      "PowerShell(wsl -d Ubuntu -- docker ps --format \"{{.Names}}\" 2>&1)",
+      "PowerShell(wsl --list --running 2>&1)",
+      "Bash(curl -s -X POST http://localhost:8000/dev/seed-dummy-run)",
+      "Bash(.venv/Scripts/python -c \"import ast; ast.parse\\(open\\('app/api/dev.py'\\).read\\(\\)\\); print\\('syntax ok'\\)\")",
+      "Bash(.venv/Scripts/python -c \"import ast; ast.parse\\(open\\('app/main.py'\\).read\\(\\)\\); print\\('syntax ok'\\)\")",
+      "Bash(.venv/Scripts/python -c ' *)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" ps --format \"{{.Names}}\\\\t{{.Status}}\" 2>&1)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" ps -a --format \"{{.Names}}\\\\t{{.Status}}\" 2>&1)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Docker\\\\Docker\\\\resources\\\\bin\\\\docker.exe\" logs origo-engine-api-1 --tail 30 2>&1)"
+    ]
+  }
+}

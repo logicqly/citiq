@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps for asyncpg build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python deps first (cache layer)
+COPY pyproject.toml .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -e ".[dev]"
+
+# Copy source
+COPY . .
+
+# No exposed ports — the worker does not accept HTTP traffic.
+# Use ; not && so a no-op migration doesn't abort the worker start.
+CMD ["sh", "-c", "alembic upgrade head; arq app.scheduler.worker.WorkerSettings"]

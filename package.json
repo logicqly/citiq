@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@railway/mcp-server": "^0.1.8"
+  }
+}

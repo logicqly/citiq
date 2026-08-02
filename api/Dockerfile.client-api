@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+
+# Build context is the repository root; pyproject.toml lives in api/
+COPY api/pyproject.toml .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -e ".[dev]"
+
+COPY api/ .
+
+ENV SERVICE_ROLE=client
+ENV SCHEDULER_ENABLED=false
+
+EXPOSE 8000
+CMD ["sh", "-c", "uvicorn app.client_main:app --host 0.0.0.0 --port ${PORT:-8000}"]

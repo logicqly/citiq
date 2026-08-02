@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "origo-api"
+version = "0.1.0"
+description = "Origo Engine API — GEO monitoring POC"
+requires-python = ">=3.11"
+dependencies = [
+    # Web framework
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+
+    # Database
+    "sqlalchemy>=2.0.30",
+    "alembic>=1.13.1",
+    "asyncpg>=0.29.0",
+
+    # HTTP / async
+    "httpx>=0.27.0",
+
+    # Validation
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+
+    # LLM SDKs
+    "openai>=1.30.0",
+    "anthropic>=0.28.0",
+    "google-genai>=1.0.0",
+
+    # File upload support
+    "python-multipart>=0.0.9",
+
+    # Utilities
+    "python-dotenv>=1.0.1",
+    "pyyaml>=6.0.1",
+    "structlog>=24.1.0",
+    "tenacity>=8.3.0",
+
+    # Admin auth
+    "bcrypt>=4.1.0",
+    "PyJWT>=2.8.0",
+    "redis>=5.0.0",
+
+    # Job queue / scheduler
+    "arq>=0.25.0",
+
+    # IANA timezone data (required on Windows; no-op on Linux where system tz is present)
+    "tzdata>=2023.3",
+
+    # PDF report generation
+    "reportlab>=4.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-asyncio>=0.23.6",
+    "pytest-httpx>=0.30.0",
+    "httpx>=0.27.0",
+    "ruff>=0.4.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["app/tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]

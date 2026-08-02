@@ -97,6 +97,31 @@ changing both places together.
 Both `VITE_*` values are build-time, not runtime: changing either needs a
 rebuild, not just a restart.
 
+## Frontend to API routing, and why it uses a resolver
+
+Both frontends reach the API through their own nginx, over the private
+network, so the API needs no public domain. Two details make that work:
+
+- `proxy_pass` goes through a **variable** (`set $api_upstream ${API_HOST};`)
+  rather than a literal hostname. nginx resolves a literal upstream once, when
+  it parses the config, and exits with `host not found in upstream` if that
+  lookup fails. Since `api.railway.internal` only exists while the API service
+  is running, a literal would make both frontends crash-loop whenever the API
+  is down or has not started yet, including on the very first deploy. A
+  variable defers the lookup to request time.
+- Deferring the lookup requires a `resolver` directive.
+  `docker-entrypoint.d/19-resolvers.envsh` derives it from `/etc/resolv.conf`
+  and exports `NGINX_LOCAL_RESOLVERS` before envsubst runs. The image ships an
+  equivalent script, but it is gated behind `NGINX_ENTRYPOINT_LOCAL_RESOLVERS`
+  and silently does nothing when that is unset, which would leave the literal
+  `${NGINX_LOCAL_RESOLVERS}` in the config and fail the parse. Ours is
+  unconditional. It brackets IPv6 nameservers, which is the normal case on
+  Railway's private network.
+
+The tradeoff is that an unreachable API now yields a 502 from nginx instead of
+a container that refuses to start. That is the behaviour you want: the SPA
+still loads and only API calls fail.
+
 ## Cold-start order
 
 `api` must reach a healthy state before the frontends are useful, because it

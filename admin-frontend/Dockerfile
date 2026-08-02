@@ -24,8 +24,15 @@ FROM nginx:1.27-alpine
 # apache2-utils provides htpasswd for basic auth
 RUN apk add --no-cache apache2-utils
 
-# nginx templates feature: envsubst replaces ${PORT} and ${API_HOST} at startup
+# nginx templates feature: envsubst replaces ${PORT}, ${API_HOST} and
+# ${NGINX_LOCAL_RESOLVERS} at startup
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+
+# Runs before envsubst and guarantees NGINX_LOCAL_RESOLVERS is defined.
+# docker-entrypoint.sh only sources *.envsh files that are executable, and the
+# bit does not survive a checkout on every platform, so set it here.
+COPY docker-entrypoint.d/19-resolvers.envsh /docker-entrypoint.d/19-resolvers.envsh
+RUN chmod +x /docker-entrypoint.d/19-resolvers.envsh
 
 # .htpasswd is committed — change the password by regenerating this file:
 #   htpasswd -nb admin <new-password>

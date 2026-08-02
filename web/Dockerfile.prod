@@ -23,5 +23,11 @@ COPY --from=build /app/dist /usr/share/nginx/html
 # replacing ${API_HOST} with the environment variable value.
 COPY nginx.conf /etc/nginx/templates/default.conf.template
 
+# Runs before envsubst and guarantees NGINX_LOCAL_RESOLVERS is defined.
+# docker-entrypoint.sh only sources *.envsh files that are executable, and the
+# bit does not survive a checkout on every platform, so set it here.
+COPY docker-entrypoint.d/19-resolvers.envsh /docker-entrypoint.d/19-resolvers.envsh
+RUN chmod +x /docker-entrypoint.d/19-resolvers.envsh
+
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

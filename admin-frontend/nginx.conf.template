@@ -12,9 +12,24 @@ server {
     auth_basic "Citiq Admin: Authorized Access Only";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
-    # Proxy /api/* calls to the API service
+    # Resolve the API host per request rather than once at startup.
+    #
+    # A literal hostname in proxy_pass is resolved when nginx parses the config,
+    # and nginx exits with "host not found in upstream" if that lookup fails.
+    # On Railway the API is reached over the private network, so a cold start
+    # where api is not up yet, or any api redeploy, would take this container
+    # down with it. Routing through a variable defers the lookup to request
+    # time, which needs an explicit resolver.
+    #
+    # NGINX_LOCAL_RESOLVERS is written from /etc/resolv.conf by the image's
+    # 15-local-resolvers entrypoint script, which runs before envsubst.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
+
+    # Proxy /api/* calls to the API service (strips the /api prefix)
     location /api/ {
-        proxy_pass         ${API_HOST}/;
+        set $api_upstream ${API_HOST};
+        rewrite ^/api/(.*)$ /$1 break;
+        proxy_pass         $api_upstream;
         proxy_http_version 1.1;
         proxy_ssl_server_name on;
         proxy_set_header   Host              $proxy_host;

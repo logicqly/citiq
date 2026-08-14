@@ -18,6 +18,7 @@ from app.platforms.model_registry import (
     enabled_platform_set,
     get_analysis_config_for_client,
     get_recommendation_config_for_client,
+    reconcile_engines_with_enabled,
     validate_enabled_platforms,
     validate_model_config,
 )
@@ -137,3 +138,45 @@ def test_model_config_validation_is_unrestricted_without_a_selection():
     """The global settings endpoint validates with no selection and must not
     start rejecting engine platforms because of one client's restriction."""
     assert validate_model_config({"analysis_platform": "openai"}) == []
+
+
+# ── Applying a global config to a restricted client ───────────────────────────
+#
+# The global model-config save overwrites every client's engine platform at
+# once. It names ONE platform for everyone, so without reconciliation it stores
+# an engine on a platform a restricted client has switched off — and the next
+# save from that client's own screen is then rejected for a state the admin
+# never chose ("cannot use 'openai' because that platform is disabled").
+
+def test_global_config_is_reconciled_onto_a_restricted_clients_platforms():
+    global_config = {
+        "analysis_platform": "openai",
+        "analysis_model": "gpt-4o-mini",
+        "recommendation_platform": "openai",
+        "recommendation_model": "gpt-4o-mini",
+    }
+    out = reconcile_engines_with_enabled(global_config, ["gemini"])
+    assert out["analysis_platform"] == "gemini"
+    assert out["recommendation_platform"] == "gemini"
+    assert out["analysis_model"] == DEFAULT_MODELS["gemini"]
+    assert out["recommendation_model"] == DEFAULT_MODELS["gemini"]
+
+
+def test_reconciled_config_passes_the_validation_that_rejected_it():
+    """The whole point: what gets stored must survive a later save."""
+    global_config = {"recommendation_platform": "openai", "recommendation_model": "gpt-4o-mini"}
+    assert validate_model_config(global_config, ["gemini"]) != []
+    reconciled = reconcile_engines_with_enabled(global_config, ["gemini"])
+    assert validate_model_config(reconciled, ["gemini"]) == []
+
+
+def test_unrestricted_client_takes_the_global_config_unchanged():
+    global_config = {"analysis_platform": "openai", "analysis_model": "gpt-4o-mini"}
+    assert reconcile_engines_with_enabled(global_config, None) == global_config
+
+
+def test_reconciliation_leaves_an_already_valid_engine_alone():
+    cfg = {"analysis_platform": "gemini", "analysis_model": "gemini-2.5-flash"}
+    out = reconcile_engines_with_enabled(cfg, ["gemini", "openai"])
+    assert out["analysis_platform"] == "gemini"
+    assert out["analysis_model"] == "gemini-2.5-flash"

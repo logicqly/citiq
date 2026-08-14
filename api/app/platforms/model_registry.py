@@ -369,6 +369,33 @@ def get_recommendation_config_for_client(
     )
 
 
+def reconcile_engines_with_enabled(config: dict, enabled: list[str] | None) -> dict:
+    """Return ``config`` with both engines moved onto platforms the client has on.
+
+    For applying a config that was written without knowledge of one client's
+    platform selection — the global model-config save, which overwrites every
+    client's engine platform at once. Without this it can store, say,
+    ``recommendation_platform="openai"`` on a client that has OpenAI switched
+    off: the run still works (the engine is moved again at resolve time), but
+    the stored value is invalid, so the next save from the client's own screen
+    is rejected for a state the admin never chose.
+
+    A client with no restriction is returned unchanged.
+    """
+    if enabled_platform_set(enabled) is None:
+        return config
+    out = dict(config)
+    out["analysis_platform"], out["analysis_model"], _ = get_analysis_config_for_client(
+        config, enabled
+    )
+    (
+        out["recommendation_platform"],
+        out["recommendation_model"],
+        _,
+    ) = get_recommendation_config_for_client(config, enabled)
+    return out
+
+
 def get_available_models_for_platform(platform: str) -> list[str]:
     return get_live_models().get(platform, [])
 
@@ -422,13 +449,15 @@ def validate_model_config(config: dict, enabled: list[str] | None = None) -> lis
     two settings are rejected together rather than silently reconciled later.
     """
     live = get_live_models()
-    allowed = enabled_platform_set(enabled)
+    # Not `allowed` — the model-key branch below binds that name to a list of
+    # model names, and sharing it would compare a platform against models.
+    allowed_platforms = enabled_platform_set(enabled)
     errors: list[str] = []
     for key, value in config.items():
         if key in ("analysis_platform", "recommendation_platform"):
             if value not in live:
                 errors.append(f"Unknown platform '{value}' for {key}")
-            elif allowed is not None and value not in allowed:
+            elif allowed_platforms is not None and value not in allowed_platforms:
                 engine = key.replace("_platform", "")
                 errors.append(
                     f"The {engine} engine cannot use '{value}' because that platform "

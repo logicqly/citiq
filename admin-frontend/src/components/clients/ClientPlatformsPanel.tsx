@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
 import { platformConfigApi } from "../../api/client";
+import type { AvailableModelsResponse } from "../../api/client";
 import type { ClientDetail } from "../../types";
 import { platMeta, useToast } from "../ui/ui";
 
@@ -11,6 +12,37 @@ const ENGINE_DESC: Record<string, string> = {
 };
 
 const ENGINES = ["analysis", "recommendation"] as const;
+
+/**
+ * Move any engine sitting on a platform that is not enabled onto one that is,
+ * along with that platform's default model.
+ *
+ * Runs on load as well as on toggle, because a client's stored engine can
+ * already point at a disabled platform before this screen is ever opened:
+ * saving global model settings rewrites every client's engine platform without
+ * knowing their individual selection. Without this the dropdown renders blank,
+ * the stale platform is submitted unchanged, and the save is rejected with
+ * "cannot use X because that platform is disabled for this client".
+ */
+function withEnginesOnEnabled(
+  config: Record<string, string>,
+  enabled: string[],
+  models: AvailableModelsResponse | undefined,
+): Record<string, string> {
+  if (!enabled.length) return config;
+  const next = { ...config };
+  for (const engine of ENGINES) {
+    const platformKey = `${engine}_platform`;
+    const current = next[platformKey];
+    if (current && !enabled.includes(current)) {
+      const replacement = enabled[0];
+      next[platformKey] = replacement;
+      next[`${engine}_model`] =
+        models?.defaults[replacement] ?? models?.platforms[replacement]?.[0] ?? "";
+    }
+  }
+  return next;
+}
 
 /**
  * Per-client platform selection plus the model each platform uses.
@@ -48,12 +80,15 @@ export function ClientPlatformsPanel({
   const [enabled, setEnabled] = useState<string[]>([]);
 
   // null from the API means "every platform" — the state of a client that has
-  // never been restricted — so it expands to the full list for editing.
+  // never been restricted — so it expands to the full list for editing. The
+  // engines are reconciled against that selection immediately, so a stored
+  // engine on a since-disabled platform shows (and saves) as a valid one.
   useEffect(() => {
     if (!saved || !allPlatforms.length) return;
-    setModelConfig(saved.config);
-    setEnabled(saved.enabled_platforms ?? allPlatforms);
-  }, [saved, allPlatforms]);
+    const nextEnabled = saved.enabled_platforms ?? allPlatforms;
+    setEnabled(nextEnabled);
+    setModelConfig(withEnginesOnEnabled(saved.config, nextEnabled, availableModels));
+  }, [saved, allPlatforms, availableModels]);
 
   const savedEnabled = useMemo(
     () => saved?.enabled_platforms ?? allPlatforms,
@@ -98,25 +133,8 @@ export function ClientPlatformsPanel({
       ? enabled.filter((p) => p !== platform)
       : [...enabled, platform];
     setEnabled(next);
-
-    // Keep the engines on a platform that is still on. Without this the save
-    // would be rejected for pointing an engine at a disabled platform.
-    setModelConfig((prev) => {
-      const updated = { ...prev };
-      for (const engine of ENGINES) {
-        const pKey = `${engine}_platform`;
-        const current = updated[pKey];
-        if (current && !next.includes(current)) {
-          const replacement = next[0];
-          updated[pKey] = replacement;
-          updated[`${engine}_model`] =
-            availableModels?.defaults[replacement] ??
-            availableModels?.platforms[replacement]?.[0] ??
-            "";
-        }
-      }
-      return updated;
-    });
+    // Keep the engines on a platform that is still on, or the save is rejected.
+    setModelConfig((prev) => withEnginesOnEnabled(prev, next, availableModels));
   }
 
   if (!availableModels || !saved) {

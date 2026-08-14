@@ -22,7 +22,11 @@ from app.db import get_db
 from app.models.admin_user import AdminUser
 from app.models.client import Client
 from app.models.system_setting import SystemSetting
-from app.platforms.model_registry import resolve_model_config, validate_model_config
+from app.platforms.model_registry import (
+    reconcile_engines_with_enabled,
+    resolve_model_config,
+    validate_model_config,
+)
 from app.services.audit_service import log_audit
 from app.services.display_config import resolve_display_config, validate_display_config
 from app.services.llm_pricing import (
@@ -127,9 +131,16 @@ async def update_global_model_config(
 
     # Apply it to every client by overwriting each client's per-client model
     # field. Each write is scoped to that single client.
+    #
+    # A client restricted to a subset of platforms keeps its engines on those
+    # platforms: the global config names one engine platform for everyone, and
+    # writing it verbatim would leave restricted clients storing an engine on a
+    # platform they have switched off.
     clients = (await db.execute(select(Client))).scalars().all()
     for client in clients:
-        client.platform_model_config = dict(body.config)
+        client.platform_model_config = reconcile_engines_with_enabled(
+            dict(body.config), client.enabled_platforms
+        )
         await log_audit(
             db,
             client_id=client.id,

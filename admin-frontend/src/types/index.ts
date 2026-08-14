@@ -45,6 +45,8 @@ export interface Client {
   last_scheduled_run_at: string | null;
   // Per-client AI model overrides
   platform_model_config: Record<string, string> | null;
+  // Platforms this client is monitored on. null = all of them.
+  enabled_platforms: string[] | null;
   // Per-client "Client display" override. null = following the global display
   // defaults; an object = customised/detached.
   display_config: Record<string, boolean> | null;

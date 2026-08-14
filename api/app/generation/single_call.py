@@ -364,7 +364,7 @@ async def generate_recommendations_single_call(
         usable_input_tokens,
     )
     rec_platform, rec_model, custom_prompt = get_recommendation_config_for_client(
-        client.platform_model_config
+        client.platform_model_config, client.enabled_platforms
     )
 
     # The budget is the smaller of what is configured and what this model's

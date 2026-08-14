@@ -195,6 +195,9 @@ async def test_start_run_creates_run():
 
     client = MagicMock()
     client.slug = "acme"
+    # Not a MagicMock: start_run reads this to decide the run's platforms, and
+    # None is the "every platform" case this test asserts the task total for.
+    client.enabled_platforms = None
     client_result = MagicMock()
     client_result.scalar_one_or_none.return_value = client
 
@@ -213,7 +216,9 @@ async def test_start_run_creates_run():
     db.execute = AsyncMock(side_effect=execute)
     db.flush = AsyncMock()
 
-    with patch("app.platforms.all_platforms", return_value=list(Platform)):
+    with patch(
+        "app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)
+    ):
         run = await start_run(CLIENT_ID, db)
 
     assert run.client_id == CLIENT_ID
@@ -248,7 +253,7 @@ async def test_orchestrate_run_persists_all_responses():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
             await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     responses = [obj for obj in session.added if isinstance(obj, Response)]
@@ -269,7 +274,7 @@ async def test_orchestrate_run_transitions_to_running():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
             await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     assert run.status == RunStatus.running
@@ -287,7 +292,7 @@ async def test_orchestrate_run_covers_all_prompt_platform_pairs():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
             await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     responses = [obj for obj in session.added if isinstance(obj, Response)]
@@ -327,7 +332,7 @@ async def test_orchestrate_run_tolerates_partial_failure():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter), \
-         patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)), \
+         patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)), \
          patch.object(settings, "monitoring_retry_passes", 0):
         await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
@@ -367,7 +372,7 @@ async def test_dropped_calls_recover_on_retry():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter), \
-         patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+         patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
         await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     responses = [obj for obj in session.added if isinstance(obj, Response)]
@@ -394,7 +399,7 @@ async def test_persistent_platform_failure_recorded_after_retries():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter), \
-         patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+         patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
         await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     import json
@@ -422,7 +427,7 @@ async def test_cancelled_before_start_launches_nothing():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter), \
-         patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+         patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
         await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     complete.assert_not_called()
@@ -455,7 +460,7 @@ async def test_cancel_mid_run_stops_new_calls_and_keeps_status():
 
     only_anthropic = [Platform.anthropic]
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter), \
-         patch("app.services.run_orchestrator.all_platforms", return_value=only_anthropic), \
+         patch("app.services.run_orchestrator.platforms_for_client", return_value=only_anthropic), \
          patch.object(settings, "max_concurrent_per_platform", 1):
         await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
@@ -524,7 +529,7 @@ async def test_orchestrate_run_marks_failed_when_all_tasks_fail():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
             await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     assert run.status == RunStatus.failed
@@ -581,7 +586,7 @@ async def test_bounded_concurrency_per_platform():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
             with patch("app.config.settings.max_concurrent_per_platform", max_allowed):
                 await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
@@ -615,7 +620,7 @@ async def test_response_fields_mapped_correctly():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=[Platform.openai]):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=[Platform.openai]):
             await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     responses = [obj for obj in session.added if isinstance(obj, Response)]
@@ -648,7 +653,7 @@ async def test_progress_counter_uses_atomic_sql_increment():
         return adapter
 
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=list(Platform)):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=list(Platform)):
             await orchestrate_run(RUN_ID, CLIENT_ID, factory)
 
     increments = [
@@ -681,7 +686,7 @@ async def test_slow_call_times_out_instead_of_stalling_run():
 
     only_anthropic = [Platform.anthropic]
     with patch("app.services.run_orchestrator.get_adapter", side_effect=mock_get_adapter):
-        with patch("app.services.run_orchestrator.all_platforms", return_value=only_anthropic):
+        with patch("app.services.run_orchestrator.platforms_for_client", return_value=only_anthropic):
             # Anthropic is grounded by default, so its effective ceiling is
             # max(plain, grounded) — patch BOTH so the hung call times out fast.
             with patch("app.config.settings.platform_call_timeout_seconds", 0.05), \

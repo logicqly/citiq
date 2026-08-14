@@ -99,7 +99,9 @@ def _make_run(status=RunStatus.running, generation_requested=True):
 
 
 def _make_client():
-    return SimpleNamespace(name="Acme", platform_model_config={})
+    # enabled_platforms=None is the "monitored on every platform" state that
+    # every client had before per-client platform selection existed.
+    return SimpleNamespace(name="Acme", platform_model_config={}, enabled_platforms=None)
 
 
 def _factory(session):

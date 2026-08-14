@@ -7,6 +7,7 @@ import { EmptyState, useConfirm, useToast } from "../ui/ui";
 import type { ConfirmOptions } from "../ui/ui";
 import { DISPLAY_FIELDS, resolveDisplayConfig, type DisplayConfig } from "../settings/displayFields";
 import { DisplayChecklist } from "../settings/DisplayChecklist";
+import { ClientPlatformsPanel } from "./ClientPlatformsPanel";
 
 // Curated list of common IANA timezones with friendly labels.
 // The value is the IANA name (what the backend stores + zoneinfo uses).
@@ -249,6 +250,8 @@ export function ClientSettings() {
           {updateMut.isPending ? "Saving..." : "Save changes"}
         </button>
       </div>
+
+      <ClientPlatformsPanel clientId={clientId!} client={client} />
 
       <ClientDisplayPanel clientId={clientId!} client={client} />
 

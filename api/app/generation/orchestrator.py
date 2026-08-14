@@ -167,7 +167,7 @@ async def generate_recommendations(
         # to (successful recs carry their own generation_model).
         from app.platforms.model_registry import get_recommendation_config_for_client
         rec_platform, rec_model, _ = get_recommendation_config_for_client(
-            client.platform_model_config
+            client.platform_model_config, client.enabled_platforms
         )
 
         async def _log_gen_call(

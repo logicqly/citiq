@@ -35,7 +35,7 @@ from app.models.prompt import Prompt
 from app.models.response import Platform, Response
 from app.models.run import Run, RunStatus
 from app.models.run_call import RunCallOutcome, RunCallPhase
-from app.platforms import all_platforms, get_adapter
+from app.platforms import get_adapter, platforms_for_client
 from app.platforms.base import PlatformResponse
 from app.platforms.model_registry import DEFAULT_MODELS, get_model_for_client
 from app.services.call_capture import capture_calls, drain_exchanges
@@ -168,7 +168,10 @@ async def start_run(client_id: uuid.UUID, db: AsyncSession) -> Run:
     if not prompts:
         raise ValueError(f"No active prompts found for client {client_id}")
 
-    platforms = all_platforms()
+    # Only the platforms this client is monitored on — the run's task total has
+    # to match what orchestrate_run will actually fan out, or progress never
+    # reaches 100%.
+    platforms = platforms_for_client(client.enabled_platforms)
     total = len(prompts) * len(platforms)
 
     ts = datetime.now(UTC)
@@ -223,6 +226,7 @@ async def orchestrate_run(
     async with session_factory() as db:
         client = (await db.execute(select(Client).where(Client.id == client_id))).scalar_one_or_none()
         platform_model_config = client.platform_model_config if client else None
+        enabled_platforms = client.enabled_platforms if client else None
 
     # Mark run as running — unless the kill switch was already pulled between
     # trigger and pipeline start (never resurrect a cancelled run).
@@ -246,10 +250,11 @@ async def orchestrate_run(
             )
         ).scalars().all()
 
-    platforms = all_platforms()
+    platforms = platforms_for_client(enabled_platforms)
     semaphores: dict[Platform, asyncio.Semaphore] = {
         p: asyncio.Semaphore(settings.max_concurrent_per_platform) for p in platforms
     }
+    log.info("run_platforms_resolved", platforms=[p.value for p in platforms])
 
     async def _run_pass(
         specs: list[tuple[Prompt, Platform]], attempt: int = 1

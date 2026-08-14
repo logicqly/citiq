@@ -427,6 +427,8 @@ export interface AvailableModelsResponse {
 
 export interface PlatformModelConfig {
   config: Record<string, string>;
+  /** Platforms the client is monitored on. null = all of them. */
+  enabled_platforms?: string[] | null;
 }
 
 export const platformConfigApi = {
@@ -436,9 +438,18 @@ export const platformConfigApi = {
   getConfig: async (clientId: string) =>
     http.get<PlatformModelConfig>(`/admin/clients/${await resolveClientId(clientId)}/platform-config`).then((r) => r.data),
 
-  updateConfig: async (clientId: string, config: Record<string, string>) =>
+  // Omitting enabled_platforms leaves the stored selection untouched, so a
+  // model-only save cannot silently re-enable platforms.
+  updateConfig: async (
+    clientId: string,
+    config: Record<string, string>,
+    enabledPlatforms?: string[] | null,
+  ) =>
     http
-      .put<PlatformModelConfig>(`/admin/clients/${await resolveClientId(clientId)}/platform-config`, { config })
+      .put<PlatformModelConfig>(`/admin/clients/${await resolveClientId(clientId)}/platform-config`, {
+        config,
+        ...(enabledPlatforms !== undefined ? { enabled_platforms: enabledPlatforms } : {}),
+      })
       .then((r) => r.data),
 };
 

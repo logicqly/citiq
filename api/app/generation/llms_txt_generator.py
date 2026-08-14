@@ -154,7 +154,9 @@ async def generate_llms_txt_recommendation(
 
     from app.generation.llm import call_generation_llm
     from app.platforms.model_registry import get_recommendation_config_for_client
-    rec_platform, rec_model, _ = get_recommendation_config_for_client(client.platform_model_config)
+    rec_platform, rec_model, _ = get_recommendation_config_for_client(
+        client.platform_model_config, client.enabled_platforms
+    )
     try:
         raw_text, input_tokens, output_tokens = await call_generation_llm(
             rec_platform, rec_model, prompt_str

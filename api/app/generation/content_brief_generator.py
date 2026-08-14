@@ -155,7 +155,9 @@ async def generate_content_brief(
     ) or "None"
 
     from app.platforms.model_registry import get_recommendation_config_for_client
-    rec_platform, rec_model, custom_prompt = get_recommendation_config_for_client(client_model_config)
+    rec_platform, rec_model, custom_prompt = get_recommendation_config_for_client(
+        client_model_config, client.enabled_platforms
+    )
 
     fmt_kwargs = dict(
         client_name=client.name,

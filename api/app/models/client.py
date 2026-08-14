@@ -37,6 +37,19 @@ class Client(Base):
     # ── Per-client AI model overrides ─────────────────────────────────────────
     platform_model_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    # ── Per-client platform selection ─────────────────────────────────────────
+    # Which platforms this client is monitored on, e.g. ["openai"]. NULL means
+    # every platform — the behaviour before this column existed — so clients
+    # that were never restricted keep collecting from all four adapters.
+    # Gates the engines too, not just collection: a platform that is off here
+    # cannot be used for citation analysis or recommendation generation either
+    # (see model_registry._resolve_engine_config).
+    #
+    # Its own column, not a key in platform_model_config, because the global
+    # model-config save overwrites that JSONB for every client and would wipe
+    # the selection with it.
+    enabled_platforms: Mapped[list | None] = mapped_column(JSONB, nullable=True)
+
     # ── Per-client "Client display" override ──────────────────────────────────
     # NULL: the client follows the global display defaults (system_settings.
     # display_defaults). A dict: the client has been customised and is detached,

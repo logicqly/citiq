@@ -257,6 +257,19 @@ def get_model_for_client(platform: str, client_config: dict | None) -> str:
     return DEFAULT_MODELS.get(platform, "")
 
 
+def enabled_platform_set(enabled: list[str] | None) -> set[str] | None:
+    """Normalise a client's ``enabled_platforms`` into a set of platform names.
+
+    Returns None for "no restriction" — both when the client was never
+    restricted (NULL) and when the stored value names nothing we recognise, so
+    a malformed row can never lock every platform out of the engines.
+    """
+    if not enabled:
+        return None
+    names = {str(p).lower() for p in enabled} & set(AVAILABLE_MODELS)
+    return names or None
+
+
 def _resolve_engine_config(
     cfg: dict,
     *,
@@ -266,10 +279,17 @@ def _resolve_engine_config(
     prompt_key: str,
     default_platform: str,
     default_model: str,
+    enabled: list[str] | None = None,
 ) -> tuple[str, str, str | None]:
     """Shared platform/model resolution for the analysis and recommendation
     engines. Falls back to defaults when a configured platform or model is not
-    in the live lists — and logs the swap, which used to happen silently."""
+    in the live lists — and logs the swap, which used to happen silently.
+
+    ``enabled`` is the client's platform selection. A platform the client has
+    turned off cannot run its engines either: the engine is moved to an enabled
+    platform instead. The model is re-resolved for that platform further down,
+    since a model configured for the old provider is meaningless on the new one.
+    """
     live = get_live_models()
     platform = cfg.get(platform_key, default_platform)
     if platform not in live:
@@ -281,6 +301,27 @@ def _resolve_engine_config(
                 default=default_platform,
             )
         platform = default_platform
+
+    allowed = enabled_platform_set(enabled)
+    if allowed is not None and platform not in allowed:
+        # Prefer the engine default when the client still has it on, otherwise
+        # the first enabled platform in the canonical order — deterministic, so
+        # the same client always lands on the same replacement.
+        replacement = (
+            default_platform
+            if default_platform in allowed
+            else next((p for p in AVAILABLE_MODELS if p in allowed), default_platform)
+        )
+        logger.warning(
+            "engine_platform_disabled_for_client",
+            engine=engine,
+            configured=platform,
+            replacement=replacement,
+            enabled=sorted(allowed),
+            hint="platform is off for this client; engine moved to an enabled platform",
+        )
+        platform = replacement
+
     model = cfg.get(model_key, default_model)
     if model not in live.get(platform, []):
         fallback = DEFAULT_MODELS.get(platform, default_model)
@@ -296,7 +337,9 @@ def _resolve_engine_config(
     return platform, model, cfg.get(prompt_key) or None
 
 
-def get_analysis_config_for_client(client_config: dict | None) -> tuple[str, str, str | None]:
+def get_analysis_config_for_client(
+    client_config: dict | None, enabled: list[str] | None = None
+) -> tuple[str, str, str | None]:
     """Return (platform, model, custom_prompt) for the analysis engine."""
     return _resolve_engine_config(
         client_config or {},
@@ -306,10 +349,13 @@ def get_analysis_config_for_client(client_config: dict | None) -> tuple[str, str
         prompt_key="analysis_prompt",
         default_platform=DEFAULT_ANALYSIS_PLATFORM,
         default_model=DEFAULT_ANALYSIS_MODEL,
+        enabled=enabled,
     )
 
 
-def get_recommendation_config_for_client(client_config: dict | None) -> tuple[str, str, str | None]:
+def get_recommendation_config_for_client(
+    client_config: dict | None, enabled: list[str] | None = None
+) -> tuple[str, str, str | None]:
     """Return (platform, model, custom_prompt) for the recommendation/generation engine."""
     return _resolve_engine_config(
         client_config or {},
@@ -319,6 +365,7 @@ def get_recommendation_config_for_client(client_config: dict | None) -> tuple[st
         prompt_key="recommendation_prompt",
         default_platform=DEFAULT_RECOMMENDATION_PLATFORM,
         default_model=DEFAULT_RECOMMENDATION_MODEL,
+        enabled=enabled,
     )
 
 
@@ -348,18 +395,45 @@ def resolve_model_config(config: dict | None) -> dict[str, str]:
     return resolved
 
 
-def validate_model_config(config: dict) -> list[str]:
+def validate_enabled_platforms(enabled: list[str] | None) -> list[str]:
+    """Validate a submitted platform selection.
+
+    None means "all platforms" and is always valid. A list must name at least
+    one known platform: an empty selection would mean a client whose runs
+    collect nothing, which is a broken client rather than a configured one.
+    """
+    if enabled is None:
+        return []
+    known = set(AVAILABLE_MODELS)
+    errors = [f"Unknown platform '{p}'" for p in enabled if str(p).lower() not in known]
+    if not enabled:
+        errors.append("At least one platform must be enabled")
+    return errors
+
+
+def validate_model_config(config: dict, enabled: list[str] | None = None) -> list[str]:
     """Validate a submitted model-config dict against the live model lists.
 
     Returns a list of human-readable errors (empty when valid). Shared by the
     per-client and global settings endpoints.
+
+    ``enabled`` is the client's platform selection, when the caller has one: an
+    engine cannot be pointed at a platform the client has switched off, so the
+    two settings are rejected together rather than silently reconciled later.
     """
     live = get_live_models()
+    allowed = enabled_platform_set(enabled)
     errors: list[str] = []
     for key, value in config.items():
         if key in ("analysis_platform", "recommendation_platform"):
             if value not in live:
                 errors.append(f"Unknown platform '{value}' for {key}")
+            elif allowed is not None and value not in allowed:
+                engine = key.replace("_platform", "")
+                errors.append(
+                    f"The {engine} engine cannot use '{value}' because that platform "
+                    f"is disabled for this client"
+                )
         elif key in ("analysis_model", "recommendation_model"):
             platform_key = key.replace("_model", "_platform")
             platform = config.get(

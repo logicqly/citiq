@@ -105,8 +105,8 @@ def _resolve_final_status(
 
 async def _load_run_context(
     client_id: uuid.UUID, session_factory: async_sessionmaker
-) -> tuple[str, dict, list[str]]:
-    """Client name + model config + competitor names for a run.
+) -> tuple[str, dict, list[str], list[str] | None]:
+    """Client name + model config + competitor names + platform selection.
 
     Also refreshes the LLM pricing tables from the admin-editable overrides so
     every call in the coming stage is priced at the latest stored rates (no
@@ -118,6 +118,7 @@ async def _load_run_context(
         ).scalar_one()
         client_name = client_row.name
         client_model_config = client_row.platform_model_config
+        enabled_platforms = client_row.enabled_platforms
 
         competitor_rows = (
             await db.execute(
@@ -131,7 +132,7 @@ async def _load_run_context(
         ).scalar_one_or_none()
         apply_pricing_overrides(settings_row.llm_pricing if settings_row else None)
 
-    return client_name, client_model_config, competitor_names
+    return client_name, client_model_config, competitor_names, enabled_platforms
 
 
 async def _record_phase_timings(
@@ -323,6 +324,7 @@ async def _analysis_wave(
     competitor_names: list[str],
     session_factory: async_sessionmaker,
     log,
+    enabled_platforms: list[str] | None = None,
 ) -> tuple[int, int, int, int]:
     """Analyze every stored response that has no analysis yet, with bounded
     concurrency and per-response retries.
@@ -341,7 +343,9 @@ async def _analysis_wave(
     )
 
     sem = asyncio.Semaphore(settings.analysis_max_concurrent)
-    analyzer = ResponseAnalyzer(client_model_config=client_model_config)
+    analyzer = ResponseAnalyzer(
+        client_model_config=client_model_config, enabled_platforms=enabled_platforms
+    )
     tally = _AnalysisTally()
 
     await asyncio.gather(*[
@@ -419,6 +423,7 @@ async def _collect_and_analyze(
     competitor_names: list[str],
     session_factory: async_sessionmaker,
     log,
+    enabled_platforms: list[str] | None = None,
 ) -> tuple[int, int, int, int, int, int]:
     """Collection and analysis, chained (client requirement, 2026-07-25).
 
@@ -432,7 +437,9 @@ async def _collect_and_analyze(
     analysis_ok, failures).
     """
     queue: asyncio.Queue[tuple[uuid.UUID, str]] = asyncio.Queue()
-    analyzer = ResponseAnalyzer(client_model_config=client_model_config)
+    analyzer = ResponseAnalyzer(
+        client_model_config=client_model_config, enabled_platforms=enabled_platforms
+    )
     # The worker pool is the concurrency bound; the semaphore is passed through
     # to _analyze_one (which requires one) sized to match, so neither is the
     # tighter limit.
@@ -729,7 +736,7 @@ async def run_pipeline(
     log.info("pipeline_start")
 
     # ── 1. Load client metadata ───────────────────────────────────────────────
-    client_name, client_model_config, competitor_names = await _load_run_context(
+    client_name, client_model_config, competitor_names, enabled_platforms = await _load_run_context(
         client_id, session_factory
     )
     log.info("pipeline_client_loaded", client_name=client_name, competitors=len(competitor_names))
@@ -783,6 +790,7 @@ async def run_pipeline(
         competitor_names=competitor_names,
         session_factory=session_factory,
         log=log,
+        enabled_platforms=enabled_platforms,
     )
     # The two phases overlap now, so their durations must not be summed for a
     # total — collection_analysis_ms is the real elapsed time of the pair.
@@ -841,7 +849,7 @@ async def run_analysis_stage(
     log = logger.bind(run_id=str(run_id), client_id=str(client_id), stage="analysis")
     log.info("analysis_stage_start")
 
-    client_name, client_model_config, competitor_names = await _load_run_context(
+    client_name, client_model_config, competitor_names, enabled_platforms = await _load_run_context(
         client_id, session_factory
     )
 
@@ -853,6 +861,7 @@ async def run_analysis_stage(
         competitor_names=competitor_names,
         session_factory=session_factory,
         log=log,
+        enabled_platforms=enabled_platforms,
     )
     await _record_phase_timings(run_id, session_factory, analysis_ms=analysis_ms)
 

@@ -28,7 +28,11 @@ from app.models.prompt import Prompt
 from app.models.response import Response
 from app.models.run import RESULT_STATUSES, Run
 from app.models.system_setting import SystemSetting
-from app.platforms.model_registry import resolve_model_config, validate_model_config
+from app.platforms.model_registry import (
+    resolve_model_config,
+    validate_enabled_platforms,
+    validate_model_config,
+)
 from app.services.audit_service import log_audit
 from app.services.cost_service import get_client_cost_averages
 from app.services.display_config import resolve_display_config, validate_display_config
@@ -141,6 +145,8 @@ class ClientOut(BaseModel):
     last_scheduled_run_at: datetime | None = None
     # Per-client AI model overrides
     platform_model_config: dict | None = None
+    # Platforms this client is monitored on. NULL = all of them.
+    enabled_platforms: list[str] | None = None
     # Per-client "Client display" override. NULL = following the global display
     # defaults; a dict = customised/detached. The client-facing app renders off
     # the effective flags (resolved server-side in client auth).
@@ -441,6 +447,10 @@ async def update_status(
 
 class PlatformModelConfig(BaseModel):
     config: dict[str, str]
+    # Which platforms this client is monitored on. None means all of them —
+    # the state of every client that has never been restricted. Omitting the
+    # field on a PUT leaves the existing selection untouched.
+    enabled_platforms: list[str] | None = None
 
 
 @router.get("/{client_id}/platform-config", response_model=PlatformModelConfig)
@@ -450,7 +460,10 @@ async def get_platform_config(
     admin: AdminUser = Depends(get_current_admin),
 ) -> PlatformModelConfig:
     client = await _get_client_or_404(client_id, db)
-    return PlatformModelConfig(config=resolve_model_config(client.platform_model_config))
+    return PlatformModelConfig(
+        config=resolve_model_config(client.platform_model_config),
+        enabled_platforms=client.enabled_platforms,
+    )
 
 
 @router.put("/{client_id}/platform-config", response_model=PlatformModelConfig)
@@ -462,7 +475,11 @@ async def update_platform_config(
 ) -> PlatformModelConfig:
     client = await _get_client_or_404(client_id, db)
 
-    errors = validate_model_config(body.config)
+    # A PUT without the field keeps whatever selection is stored, so a caller
+    # that only means to change models cannot silently re-enable platforms.
+    enabled = body.enabled_platforms if body.enabled_platforms is not None else client.enabled_platforms
+
+    errors = validate_enabled_platforms(enabled) + validate_model_config(body.config, enabled)
     if errors:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -470,6 +487,7 @@ async def update_platform_config(
         )
 
     client.platform_model_config = body.config
+    client.enabled_platforms = enabled
     await log_audit(
         db,
         client_id=client_id,
@@ -477,11 +495,14 @@ async def update_platform_config(
         entity_type="client",
         entity_id=client_id,
         actor=admin.email,
-        details={"config": body.config},
+        details={"config": body.config, "enabled_platforms": enabled},
     )
     await db.commit()
     await db.refresh(client)
-    return PlatformModelConfig(config=client.platform_model_config or {})
+    return PlatformModelConfig(
+        config=client.platform_model_config or {},
+        enabled_platforms=client.enabled_platforms,
+    )
 
 
 # ── Client display override ───────────────────────────────────────────────────

@@ -33,7 +33,7 @@ from app.models.competitor import Competitor
 from app.models.prompt import Prompt
 from app.models.recommendation import Recommendation, RecommendationStatus
 from app.models.run import Run, RunStatus
-from app.platforms import all_platforms
+from app.platforms import platforms_for_client
 from app.services.aggregator import compute_run_summary, get_prompt_details
 
 logger = structlog.get_logger()
@@ -254,12 +254,18 @@ async def build_audit_status(run: Run, db: AsyncSession) -> AuditStatusOut:
     failed_engines = _failed_engines(platform_errors)
     status_str = audit_status(run.status, failed_engines)
 
-    # Per-engine status for every wired engine.
+    # Per-engine status for every engine this client is monitored on. Platforms
+    # the client has switched off are omitted entirely rather than reported:
+    # they produce no responses and leave no error marker, so the terminal-run
+    # branch below would otherwise call every disabled engine "failed".
+    client = (
+        await db.execute(select(Client).where(Client.id == run.client_id))
+    ).scalar_one_or_none()
     engines: dict[str, str] = {}
     terminal_statuses = (
         RunStatus.completed, RunStatus.partial, RunStatus.failed, RunStatus.cancelled
     )
-    for platform in all_platforms():
+    for platform in platforms_for_client(client.enabled_platforms if client else None):
         name = engine_name(platform)
         if platform.value in platform_errors:
             engines[name] = "failed"

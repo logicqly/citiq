@@ -73,9 +73,15 @@ class AnalysisParseError(Exception):
 
 
 class ResponseAnalyzer:
-    def __init__(self, client_model_config: dict | None = None) -> None:
+    def __init__(
+        self,
+        client_model_config: dict | None = None,
+        enabled_platforms: list[str] | None = None,
+    ) -> None:
         from app.platforms.model_registry import get_analysis_config_for_client
-        self._platform, self._model, self._custom_prompt = get_analysis_config_for_client(client_model_config)
+        self._platform, self._model, self._custom_prompt = get_analysis_config_for_client(
+            client_model_config, enabled_platforms
+        )
 
     @property
     def platform(self) -> str:

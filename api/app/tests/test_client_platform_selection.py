@@ -11,6 +11,7 @@ The selection gates the ENGINES too, not just collection: a platform that is
 off for a client cannot be used for that client's citation analysis or
 recommendation generation either.
 """
+from app.api.admin_clients import PlatformModelConfig
 from app.models.response import Platform
 from app.platforms import all_platforms, platforms_for_client
 from app.platforms.model_registry import (
@@ -180,3 +181,33 @@ def test_reconciliation_leaves_an_already_valid_engine_alone():
     out = reconcile_engines_with_enabled(cfg, ["gemini", "openai"])
     assert out["analysis_platform"] == "gemini"
     assert out["analysis_model"] == "gemini-2.5-flash"
+
+
+# ── PUT payload semantics ─────────────────────────────────────────────────────
+#
+# The update endpoint has to tell three payloads apart. Collapsing the first two
+# made re-ticking the last unticked platform a silent no-op: the UI sends null
+# to mean "all platforms", which was being read as "leave the selection alone".
+
+def _resolves_to(payload: dict, stored: list[str] | None):
+    """Mirror of how update_platform_config decides the new selection."""
+    body = PlatformModelConfig.model_validate(payload)
+    return (
+        body.enabled_platforms
+        if "enabled_platforms" in body.model_fields_set
+        else stored
+    )
+
+
+def test_explicit_null_means_every_platform_not_leave_it_alone():
+    assert _resolves_to({"config": {}, "enabled_platforms": None}, stored=["openai"]) is None
+
+
+def test_omitted_field_keeps_the_stored_selection():
+    assert _resolves_to({"config": {}}, stored=["openai"]) == ["openai"]
+
+
+def test_explicit_list_replaces_the_stored_selection():
+    assert _resolves_to({"config": {}, "enabled_platforms": ["gemini"]}, stored=["openai"]) == [
+        "gemini"
+    ]

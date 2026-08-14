@@ -475,9 +475,17 @@ async def update_platform_config(
 ) -> PlatformModelConfig:
     client = await _get_client_or_404(client_id, db)
 
-    # A PUT without the field keeps whatever selection is stored, so a caller
-    # that only means to change models cannot silently re-enable platforms.
-    enabled = body.enabled_platforms if body.enabled_platforms is not None else client.enabled_platforms
+    # "Field omitted" and "field sent as null" mean different things and must
+    # not be collapsed: omitted keeps the stored selection (so a model-only save
+    # cannot silently re-enable platforms), while an explicit null IS the
+    # selection "every platform" — which is what re-ticking the last unticked
+    # platform sends. Reading null as "keep" made re-enabling a platform a
+    # silent no-op.
+    enabled = (
+        body.enabled_platforms
+        if "enabled_platforms" in body.model_fields_set
+        else client.enabled_platforms
+    )
 
     errors = validate_enabled_platforms(enabled) + validate_model_config(body.config, enabled)
     if errors:

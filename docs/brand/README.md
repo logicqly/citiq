@@ -4,14 +4,11 @@ Design-system reference for Citiq (citiq.ai), a Logicqly product. This file
 summarizes the parts engineers need: the tokens below are what both frontends
 actually implement in their `index.css`.
 
-## Mark: placeholder, pending replacement
+## Mark
 
-> **The mark shipped today is inherited placeholder geometry, not the Citiq
-> mark.** It came from the codebase Citiq was forked from and is kept only so
-> the UI is not blank while the real mark is designed. Replace it before any
-> public launch.
-
-Swapping it is four edits, all rendering the same paths:
+The Citiq mark is `citiq-mark.svg` in this folder: a 131.01 x 127.02 viewBox
+holding three shapes (the open ring, the corner wedge, the base sweep). It is
+the single source of truth; every surface below renders the same geometry.
 
 | Where | File |
 |---|---|
@@ -19,13 +16,16 @@ Swapping it is four edits, all rendering the same paths:
 | Client app component | `web/src/components/ui.tsx` (`CitiqMark`, same) |
 | Favicons | `admin-frontend/public/favicon.svg`, `web/public/favicon.svg` |
 | Empty-state watermark | inline data-URI in `admin-frontend/src/index.css` and `web/src/index.css` |
+| Design handoff sheets | `docs/design-handoff/*.html` (`CITIQ_PATHS`) |
 
-`Origo-Brand-Kit.pdf`, `origo-mark.svg`, and `origo-lockup.svg` in this folder
-are the *previous* product's assets. They are retained only as the source of
-the placeholder geometry and carry no Citiq licence; delete them once the Citiq
-mark lands.
+In-app the mark inherits `currentColor` so it tracks the ink scale in both
+themes; the favicons are the only place it carries the brand orange.
 
-## Logo rules (apply to the replacement mark)
+`Origo-Brand-Kit.pdf` in this folder is the *previous* product's brand kit. It
+carries no Citiq licence and nothing renders from it; delete it once nothing
+references it.
+
+## Logo rules
 
 - Monochrome only: render white on near-black, or invert to black on white.
 - Never recolor, stretch, rotate, add effects, or resize the mark out of

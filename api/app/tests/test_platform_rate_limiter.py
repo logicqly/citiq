@@ -1,19 +1,20 @@
 """
 Regression tests for the per-platform rate limiter.
 
-The bug these lock down (the "crawled for hours" failure): the old limiter
-refreshed the key TTL on every attempt and incremented on the over-limit retry
-path, turning a per-minute counter into a permanent lifetime counter that never
-drained. Past a platform's cap, every call spun for ~12 minutes and then
-proceeded anyway.
+The bug these lock down (the 429 storms): the limiter was a fixed 60-second
+window counter, so a window's whole budget was available the instant it opened.
+The engine opens a run by firing max_concurrent_per_platform calls at once, so
+a platform configured at 50/min got two dozen requests inside one second and
+returned 429 for most of them, while the limiter believed it was well under
+budget. Capping volume is not the same as capping rate.
 
-These tests use a self-contained fake Redis (no server needed) with a
-caller-controlled clock, so they assert the *semantics* deterministically:
-  - the TTL is armed once (on window creation), never refreshed;
-  - an over-limit caller gives its token back and waits only until the window
-    rolls over, then succeeds — it does not hang and does not poison the counter;
-  - the counter resets each window instead of growing without bound;
-  - Redis being unavailable fails open (the run is never blocked).
+The limiter now spaces requests 60/limit seconds apart. These tests assert that
+spacing deterministically with a self-contained fake Redis (no server needed)
+and a caller-controlled clock, plus the fail-open guarantees that predate this
+change — a Redis outage or a saturated platform must never hang a run.
+
+They also still cover the older "crawled for hours" failure: no reservation may
+outlive its slot and block later callers indefinitely.
 """
 import asyncio
 
@@ -31,47 +32,39 @@ class _Clock:
 
 
 class _FakeRedis:
-    """Minimal async Redis emulating the acquire Lua script + TTL expiry.
+    """Minimal async Redis emulating the reserve Lua script.
 
-    Records how many EXPIRE calls each key received so a test can prove the TTL
-    is armed exactly once (never refreshed).
+    Mirrors _RESERVE_LUA: a single cursor key holding the next free slot in ms,
+    read and advanced atomically, with TIME served from the test clock.
     """
 
     def __init__(self, clock: _Clock) -> None:
         self.clock = clock
-        self.count: dict[str, int] = {}
+        self.value: dict[str, float] = {}
         self.expire_at: dict[str, float] = {}
-        self.expire_calls: dict[str, int] = {}
-        # Highest *settled* count (after any DECR) ever observed between evals.
-        # Because eval is atomic, this is what any other client could see.
-        self.settled_peak: dict[str, int] = {}
+
+    def _now_ms(self) -> float:
+        return self.clock.t * 1000.0
 
     def _reap(self, key: str) -> None:
         exp = self.expire_at.get(key)
-        if exp is not None and self.clock.t >= exp:
-            self.count.pop(key, None)
+        if exp is not None and self._now_ms() >= exp:
+            self.value.pop(key, None)
             self.expire_at.pop(key, None)
 
-    def _ttl(self, key: str) -> int:
-        exp = self.expire_at.get(key)
-        if exp is None:
-            return -1
-        return max(0, int(round(exp - self.clock.t)))
-
-    async def eval(self, script, numkeys, key, window, limit):
-        # Mirrors _ACQUIRE_LUA exactly.
+    async def eval(self, script, numkeys, key, interval_ms, max_ahead_ms):
         self._reap(key)
-        count = self.count.get(key, 0) + 1
-        self.count[key] = count
-        if count == 1:
-            self.expire_at[key] = self.clock.t + float(window)
-            self.expire_calls[key] = self.expire_calls.get(key, 0) + 1
-        if count <= int(limit):
-            self.settled_peak[key] = max(self.settled_peak.get(key, 0), count)
-            return [1, self._ttl(key)]
-        self.count[key] = count - 1  # DECR — give the token back
-        self.settled_peak[key] = max(self.settled_peak.get(key, 0), self.count[key])
-        return [0, self._ttl(key)]
+        now = self._now_ms()
+        interval = float(interval_ms)
+        next_free = self.value.get(key, 0.0)
+        if next_free < now:
+            next_free = now
+        wait = next_free - now
+        if wait > float(max_ahead_ms):
+            return -1
+        self.value[key] = next_free + interval
+        self.expire_at[key] = now + wait + interval + prl._TTL_SLACK_MS
+        return wait
 
 
 @pytest.fixture
@@ -79,57 +72,94 @@ def fake_redis(monkeypatch):
     clock = _Clock()
     fake = _FakeRedis(clock)
 
-    # sleeping advances the (fake) clock instead of burning wall time, so window
-    # rollover happens deterministically and the test runs instantly.
+    # Sleeping advances the (fake) clock instead of burning wall time, so the
+    # pacing is asserted deterministically and the test runs instantly.
     async def _fast_sleep(seconds: float) -> None:
         clock.advance(seconds)
 
     monkeypatch.setattr(prl, "_get_async_redis", lambda: fake)
     monkeypatch.setattr(prl.asyncio, "sleep", _fast_sleep)
-    monkeypatch.setattr(prl, "_limit_for", lambda platform: 2)  # tiny cap for the test
+    monkeypatch.setattr(prl, "_limit_for", lambda platform: 60)  # 60/min -> 1s apart
     return fake, clock
 
 
-async def test_over_limit_caller_waits_for_window_then_succeeds(fake_redis):
-    fake, clock = fake_redis
-    key = "platform_rl:perplexity:window"
+async def test_first_call_never_waits(fake_redis):
+    _, clock = fake_redis
+    await prl.acquire_platform_token("perplexity")
+    assert clock.t == 1000.0
 
-    # First two acquisitions (cap = 2) succeed immediately, no clock movement.
+
+async def test_consecutive_calls_are_spaced_by_the_interval(fake_redis):
+    _, clock = fake_redis
     await prl.acquire_platform_token("perplexity")
     await prl.acquire_platform_token("perplexity")
-    assert fake.count[key] == 2
-    assert clock.t == 1000.0  # nobody had to wait
-
-    # Third is over the cap: it must give its token back (counter stays at the
-    # cap, never inflates), wait ~one window, then succeed in the fresh window.
+    # 60/min == one call per second.
+    assert clock.t == pytest.approx(1001.0)
     await prl.acquire_platform_token("perplexity")
-
-    # It advanced past the 60s window (did NOT hang or blindly back off), and the
-    # counter reset to 1 for the new window rather than climbing to 3.
-    assert clock.t >= 1000.0 + prl._WINDOW_SECONDS
-    assert fake.count[key] == 1
+    assert clock.t == pytest.approx(1002.0)
 
 
-async def test_ttl_armed_once_not_refreshed(fake_redis):
-    fake, _ = fake_redis
-    key = "platform_rl:perplexity:window"
+async def test_a_burst_of_callers_is_spread_not_admitted_at_once(fake_redis):
+    """The actual production failure: concurrent callers must not all go now.
 
-    # Two in-window acquisitions must arm EXPIRE exactly once — the old bug
-    # refreshed it on every call, so the window never rolled over.
-    await prl.acquire_platform_token("perplexity")
-    await prl.acquire_platform_token("perplexity")
-    assert fake.expire_calls[key] == 1
+    Twenty-four simultaneous callers used to be admitted instantly because the
+    fixed window had budget left. They must now receive consecutive slots.
+    """
+    _, clock = fake_redis
+    start = clock.t
+
+    await asyncio.gather(*[prl.acquire_platform_token("perplexity") for _ in range(24)])
+
+    # One of the 24 went immediately; the last waited 23 intervals.
+    assert clock.t == pytest.approx(start + 23.0)
 
 
-async def test_counter_never_poisons_across_windows(fake_redis):
-    fake, clock = fake_redis
-    key = "platform_rl:perplexity:window"
-
-    # Run several windows' worth of traffic; the per-window count must never
-    # exceed the cap (proving it is a fixed window, not a lifetime counter).
-    for _ in range(6):
+async def test_the_configured_rate_is_what_actually_reaches_the_provider(fake_redis):
+    """60 calls at 60/min must span a minute, not a millisecond."""
+    _, clock = fake_redis
+    start = clock.t
+    for _ in range(60):
         await prl.acquire_platform_token("perplexity")
-    assert fake.settled_peak[key] <= 2
+    assert clock.t - start == pytest.approx(59.0)
+
+
+async def test_a_slower_limit_spaces_calls_further_apart(fake_redis, monkeypatch):
+    _, clock = fake_redis
+    monkeypatch.setattr(prl, "_limit_for", lambda platform: 20)  # 20/min -> 3s apart
+    await prl.acquire_platform_token("gemini")
+    await prl.acquire_platform_token("gemini")
+    assert clock.t == pytest.approx(1003.0)
+
+
+async def test_platforms_are_paced_independently(fake_redis):
+    """A saturated Perplexity must not slow OpenAI down."""
+    _, clock = fake_redis
+    await prl.acquire_platform_token("perplexity")
+    await prl.acquire_platform_token("openai")
+    assert clock.t == 1000.0  # different cursors, neither waited
+
+
+async def test_an_idle_platform_does_not_hold_a_stale_reservation(fake_redis):
+    """The cursor must expire, or a quiet platform would make the next caller
+    wait for a slot reserved long ago (the shape of the old lifetime-counter bug)."""
+    fake, clock = fake_redis
+    await prl.acquire_platform_token("perplexity")
+    clock.advance(3600)  # an hour of silence
+    await prl.acquire_platform_token("perplexity")
+    assert clock.t == pytest.approx(1000.0 + 3600)  # went immediately, no wait
+
+
+async def test_backed_up_platform_fails_open_instead_of_queueing_forever(fake_redis, monkeypatch):
+    """Past the max wait the limiter declines to reserve and lets the call
+    through unpaced — slowing a run is acceptable, hanging it is not."""
+    fake, clock = fake_redis
+    monkeypatch.setattr(prl.settings, "platform_rate_limit_max_wait_seconds", 5.0)
+    # Push the cursor far into the future.
+    fake.value["platform_rl:perplexity:pace"] = (clock.t + 600) * 1000.0
+    fake.expire_at["platform_rl:perplexity:pace"] = (clock.t + 4000) * 1000.0
+
+    await asyncio.wait_for(prl.acquire_platform_token("perplexity"), timeout=1.0)
+    assert clock.t == 1000.0  # returned at once rather than sleeping 600s
 
 
 async def test_fails_open_when_redis_unavailable(monkeypatch):
@@ -138,9 +168,19 @@ async def test_fails_open_when_redis_unavailable(monkeypatch):
     await asyncio.wait_for(prl.acquire_platform_token("perplexity"), timeout=1.0)
 
 
+async def test_fails_open_when_redis_errors(monkeypatch, fake_redis):
+    fake, _ = fake_redis
+
+    async def boom(*a, **k):
+        raise RuntimeError("connection lost")
+
+    monkeypatch.setattr(fake, "eval", boom)
+    await asyncio.wait_for(prl.acquire_platform_token("perplexity"), timeout=1.0)
+
+
 async def test_limit_zero_disables_limiter(fake_redis, monkeypatch):
     fake, _ = fake_redis
     monkeypatch.setattr(prl, "_limit_for", lambda platform: 0)
     # A disabled platform acquires instantly and touches nothing.
     await prl.acquire_platform_token("openai")
-    assert fake.count == {}
+    assert fake.value == {}

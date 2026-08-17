@@ -1,28 +1,41 @@
 """
 Redis-backed per-platform rate limiter.
 
-Fixed 60-second window counter per platform. Paces *every* upstream LLM call the
-engine makes — monitoring AND analysis — so a large run cannot burst past a
-provider's per-minute cap. Fails open if Redis is unavailable so a Redis outage
-never blocks pipeline execution.
+Paces *every* upstream LLM call the engine makes — monitoring AND analysis — so
+a large run cannot outrun a provider's rate limit. Fails open if Redis is
+unavailable so a Redis outage never blocks pipeline execution.
 
-Why the rewrite (the "crawled for hours" bug): the previous version refreshed the
-key's TTL on *every* acquisition attempt (``EXPIRE key 60`` ran unconditionally)
-and *incremented* on the over-limit retry path. Together those turned a
-per-minute counter into a permanent lifetime counter that could never drain: once
-a platform had made ``limit`` calls in a whole run, every remaining call spun for
-up to ~12 minutes and then proceeded anyway. It "worked" at 50 prompts only
-because 50 calls stayed just under the Perplexity cap; 100 prompts blew past it.
+Why this paces instead of counting
+----------------------------------
+This was a fixed 60-second window counter: up to ``limit`` calls were admitted
+per window, and the window's whole budget was available the instant the window
+opened. That caps VOLUME but not RATE, and the engine opens a run by firing
+``max_concurrent_per_platform`` calls at once — so a platform configured at
+50/min received two dozen requests inside one second, was told it had spent
+only 24 of its 50, and returned 429 for most of them. Lowering the configured
+limit only helped when it happened to shrink the burst below what the provider
+tolerated; the burst itself was the bug, and it hit Perplexity and Gemini alike.
 
-The counter is now maintained by a single atomic Lua script that (a) arms the TTL
-*only* when the key is first created, so the window actually rolls over, and
-(b) gives the token back (``DECR``) when it would exceed the limit, so waiting
-callers can never inflate the counter. An over-limit caller then sleeps until the
-current window expires (bounded by the window, not a blind 12-minute backoff) and
-retries in the next window.
+Requests are now spaced: at ``limit`` per minute each call reserves the next
+free slot ``60/limit`` seconds after the previous one, so 50/min means one call
+every 1.2s rather than 50 at once. Concurrency no longer determines burst size —
+twenty-four simultaneous callers simply receive twenty-four consecutive slots.
+
+The reservation is a single atomic Lua script, which is what makes it correct
+under concurrency: every caller advances the shared "next free slot" cursor by
+one interval and is told how long to sleep, so two callers can never be handed
+the same slot. Time comes from ``TIME`` inside the script (Redis' own clock)
+rather than from each caller, so workers on different machines cannot disagree
+about when a slot falls due.
+
+Predecessor bug, still guarded by tests: an older version refreshed the key's
+TTL on every attempt and incremented on the over-limit retry path, turning a
+per-minute counter into a lifetime counter that never drained ("crawled for
+hours"). Pacing has no counter to poison, and the key carries a TTL that always
+extends past the last reserved slot, so an idle platform's cursor disappears
+instead of holding a stale reservation.
 """
 import asyncio
-import random
 
 import structlog
 
@@ -30,7 +43,33 @@ from app.config import settings
 
 logger = structlog.get_logger()
 
-_WINDOW_SECONDS = 60
+# Slack added to the key's TTL beyond the last reserved slot, so a burst of
+# reservations cannot expire mid-queue and let a later caller jump the line.
+_TTL_SLACK_MS = 60_000
+
+# Reserve the next free slot for this platform.
+#   KEYS[1] = cursor key ("next free slot", ms since epoch)
+#   ARGV[1] = interval between slots (ms)
+#   ARGV[2] = furthest ahead a caller will wait (ms); beyond this we decline
+#             rather than reserve, so a saturated platform cannot build an
+#             unbounded queue of sleepers.
+# Returns the milliseconds to sleep before calling, or -1 to decline.
+_RESERVE_LUA = """
+local t = redis.call('TIME')
+local now = (tonumber(t[1]) * 1000) + math.floor(tonumber(t[2]) / 1000)
+local interval = tonumber(ARGV[1])
+local max_ahead = tonumber(ARGV[2])
+local next_free = tonumber(redis.call('GET', KEYS[1]) or '0')
+if next_free < now then
+  next_free = now
+end
+local wait = next_free - now
+if wait > max_ahead then
+  return -1
+end
+redis.call('PSETEX', KEYS[1], wait + interval + %d, next_free + interval)
+return wait
+""" % _TTL_SLACK_MS
 
 # Conservative per-minute request defaults. The real ceilings depend on the
 # account's provider tier — override any of them via env without a redeploy
@@ -42,22 +81,6 @@ _DEFAULT_LIMITS: dict[str, int] = {
     "perplexity": 50,
     "gemini": 60,
 }
-
-# Atomic acquire: INCR, arm the TTL only on creation (count == 1) so the window
-# genuinely expires, grant if within the cap, otherwise DECR the token back and
-# report the remaining TTL so the caller knows exactly how long until the window
-# rolls. Running this server-side removes every INCR/EXPIRE/DECR race.
-_ACQUIRE_LUA = """
-local count = redis.call('INCR', KEYS[1])
-if count == 1 then
-  redis.call('EXPIRE', KEYS[1], ARGV[1])
-end
-if count <= tonumber(ARGV[2]) then
-  return {1, redis.call('TTL', KEYS[1])}
-end
-redis.call('DECR', KEYS[1])
-return {0, redis.call('TTL', KEYS[1])}
-"""
 
 _redis_client = None
 
@@ -84,13 +107,13 @@ def _limit_for(platform: str) -> int:
 
 async def acquire_platform_token(platform: str) -> None:
     """
-    Reserve a request slot for the platform within the current 60s window.
+    Wait for this platform's next free request slot.
 
-    Blocks until a slot is free, waiting only until the current window rolls over
-    (never a blind multi-minute backoff, and never longer in total than
-    ``platform_rate_limit_max_wait_seconds``). Fails open — proceeds without a
-    slot — if Redis is unavailable or the max wait is exhausted, so the limiter
-    can slow a run down but can never hang it.
+    Returns once the caller may issue its request. Sleeps at most
+    ``platform_rate_limit_max_wait_seconds``; if the platform is backed up
+    beyond that the call proceeds unpaced (fail open) rather than stalling the
+    run, and says so in the log. Also fails open when Redis is unavailable, so
+    the limiter can slow a run down but can never hang it.
     """
     r = _get_async_redis()
     if r is None:
@@ -100,39 +123,31 @@ async def acquire_platform_token(platform: str) -> None:
     if limit <= 0:
         return  # limiter disabled for this platform
 
-    key = f"platform_rl:{platform}:window"
-    loop = asyncio.get_event_loop()
-    deadline = loop.time() + settings.platform_rate_limit_max_wait_seconds
+    interval_ms = 60_000.0 / limit
+    max_ahead_ms = settings.platform_rate_limit_max_wait_seconds * 1000.0
+    key = f"platform_rl:{platform}:pace"
 
-    while True:
-        try:
-            granted, ttl = await r.eval(_ACQUIRE_LUA, 1, key, _WINDOW_SECONDS, limit)
-            if int(granted) == 1:
-                return  # slot acquired
+    try:
+        wait_ms = float(await r.eval(_RESERVE_LUA, 1, key, interval_ms, max_ahead_ms))
+    except Exception as exc:
+        logger.warning("platform_rate_limiter_unavailable", platform=platform, error=str(exc))
+        return  # Fail open
 
-            now = loop.time()
-            if now >= deadline:
-                logger.warning(
-                    "platform_rate_limit_giveup",
-                    platform=platform,
-                    limit=limit,
-                    max_wait_s=settings.platform_rate_limit_max_wait_seconds,
-                )
-                return  # fail open rather than hang the run
+    if wait_ms < 0:
+        logger.warning(
+            "platform_rate_limit_giveup",
+            platform=platform,
+            limit=limit,
+            max_wait_s=settings.platform_rate_limit_max_wait_seconds,
+            hint="platform is backed up past the max wait; proceeding unpaced",
+        )
+        return  # fail open rather than hang the run
 
-            # Wait until the current window expires, then retry in the next one.
-            # ttl <= 0 means the key just expired between DECR and TTL — retry now.
-            ttl = int(ttl)
-            wait = (ttl if ttl > 0 else 1.0) + random.uniform(0, 0.5)
-            wait = min(wait, max(0.0, deadline - now))
-            logger.info(
-                "platform_rate_limit_waiting",
-                platform=platform,
-                limit=limit,
-                sleep_s=round(wait, 2),
-            )
-            await asyncio.sleep(wait)
-
-        except Exception as exc:
-            logger.warning("platform_rate_limiter_unavailable", platform=platform, error=str(exc))
-            return  # Fail open
+    if wait_ms > 0:
+        logger.debug(
+            "platform_rate_limit_waiting",
+            platform=platform,
+            limit=limit,
+            sleep_s=round(wait_ms / 1000.0, 2),
+        )
+        await asyncio.sleep(wait_ms / 1000.0)

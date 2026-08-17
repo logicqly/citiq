@@ -4,7 +4,7 @@ import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
 import { platformConfigApi } from "../../api/client";
 import type { AvailableModelsResponse } from "../../api/client";
 import type { ClientDetail } from "../../types";
-import { platMeta, useToast } from "../ui/ui";
+import { engineModels, platMeta, useToast } from "../ui/ui";
 
 const ENGINE_DESC: Record<string, string> = {
   analysis: "Evaluates AI responses for brand citations and competitive gaps.",
@@ -38,7 +38,9 @@ function withEnginesOnEnabled(
       const replacement = enabled[0];
       next[platformKey] = replacement;
       next[`${engine}_model`] =
-        models?.defaults[replacement] ?? models?.platforms[replacement]?.[0] ?? "";
+        models?.defaults[replacement] ??
+        engineModels(replacement, models?.platforms[replacement] ?? [])[0] ??
+        "";
     }
   }
   return next;
@@ -245,7 +247,10 @@ export function ClientPlatformsPanel({
           const pKey = `${engine}_platform`;
           const mKey = `${engine}_model`;
           const selectedPlatform = modelConfig[pKey] || enabled[0] || "";
-          const platformModels = availableModels.platforms[selectedPlatform] ?? [];
+          const platformModels = engineModels(
+            selectedPlatform,
+            availableModels.platforms[selectedPlatform] ?? [],
+          );
           return (
             <div key={engine} style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--ink2)" }}>
@@ -265,7 +270,7 @@ export function ClientPlatformsPanel({
                       [pKey]: next,
                       [mKey]:
                         availableModels.defaults[next] ??
-                        availableModels.platforms[next]?.[0] ??
+                        engineModels(next, availableModels.platforms[next] ?? [])[0] ??
                         "",
                     }));
                   }}

@@ -289,6 +289,52 @@ async def test_openai_ungrounded_uses_chat_completions(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_openai_pro_model_uses_responses_even_when_ungrounded(monkeypatch):
+    """-pro has no chat.completions endpoint, so grounding-off must not send it
+    there. The web_search tool stays off, since grounding is off."""
+    monkeypatch.setattr("app.config.settings.web_grounding_openai", False)
+    mock_responses = AsyncMock(
+        return_value=_make_openai_responses_response("Pro answer.", sources=[])
+    )
+    mock_chat = AsyncMock(return_value=_make_openai_chat_response("wrong path"))
+
+    with patch("app.platforms.openai.AsyncOpenAI") as mock_cls:
+        mock_instance = MagicMock()
+        mock_instance.responses.create = mock_responses
+        mock_instance.chat.completions.create = mock_chat
+        mock_cls.return_value = mock_instance
+
+        adapter = OpenAIAdapter()
+        result = await adapter.complete("test", CLIENT_ID, model="gpt-5.5-pro")
+
+    assert mock_chat.await_count == 0
+    assert mock_responses.await_count == 1
+    _, kwargs = mock_responses.call_args
+    assert "tools" not in kwargs
+    assert result.raw_response == "Pro answer."
+    assert result.model_used == "gpt-5.5-pro"
+
+
+@pytest.mark.asyncio
+async def test_openai_non_pro_model_still_uses_chat_when_ungrounded(monkeypatch):
+    monkeypatch.setattr("app.config.settings.web_grounding_openai", False)
+    mock_responses = AsyncMock(return_value=_make_openai_responses_response("wrong path"))
+    mock_chat = AsyncMock(return_value=_make_openai_chat_response("Chat answer."))
+
+    with patch("app.platforms.openai.AsyncOpenAI") as mock_cls:
+        mock_instance = MagicMock()
+        mock_instance.responses.create = mock_responses
+        mock_instance.chat.completions.create = mock_chat
+        mock_cls.return_value = mock_instance
+
+        adapter = OpenAIAdapter()
+        result = await adapter.complete("test", CLIENT_ID, model="gpt-5.5")
+
+    assert mock_responses.await_count == 0
+    assert result.raw_response == "Chat answer."
+
+
+@pytest.mark.asyncio
 async def test_openai_retries_on_429():
     from openai import APIStatusError as OpenAIStatusError
 

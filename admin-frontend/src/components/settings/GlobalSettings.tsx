@@ -6,7 +6,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { platformConfigApi, settingsApi } from "../../api/client";
 import type { PromptCategoryConfig } from "../../types";
 import { useAuth } from "../../auth/AuthContext";
-import { Chip, EmptyState, platMeta, useToast } from "../ui/ui";
+import { Chip, EmptyState, engineModels, platMeta, useToast } from "../ui/ui";
 import { DISPLAY_FIELDS, type DisplayConfig } from "./displayFields";
 import { DisplayChecklist } from "./DisplayChecklist";
 
@@ -385,7 +385,10 @@ export function GlobalSettings() {
               const modelKey = `${engine}_model`;
               const promptKey = `${engine}_prompt`;
               const selectedPlatform = modelConfig[platformKey] || "openai";
-              const platformModels = availableModels.platforms[selectedPlatform] ?? [];
+              const platformModels = engineModels(
+                selectedPlatform,
+                availableModels.platforms[selectedPlatform] ?? [],
+              );
               const defaultModel = availableModels.defaults[selectedPlatform] ?? platformModels[0] ?? "";
 
               return (
@@ -401,7 +404,7 @@ export function GlobalSettings() {
                         value={selectedPlatform}
                         onChange={(e) => {
                           const newPlatform = e.target.value;
-                          const newModels = availableModels.platforms[newPlatform] ?? [];
+                          const newModels = engineModels(newPlatform, availableModels.platforms[newPlatform] ?? []);
                           const newDefault = availableModels.defaults[newPlatform] ?? newModels[0] ?? "";
                           setModelConfig((prev) => ({ ...prev, [platformKey]: newPlatform, [modelKey]: newDefault }));
                         }}

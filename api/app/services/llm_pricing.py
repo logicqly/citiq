@@ -32,7 +32,10 @@ _PER_M = 1_000_000
 # ── Verified defaults (USD per 1M tokens: [input, output]) ────────────────────
 
 DEFAULT_MODEL_RATES: dict[str, tuple[float, float]] = {
-    # OpenAI
+    # OpenAI. No `-pro` entries: those are selectable for monitoring but their
+    # list price is not verified here, and `_rates_for` prefix-matching means
+    # "gpt-5.5-pro" bills at the "gpt-5.5" rate below — an understatement.
+    # Add the real pair via PUT /admin/settings/llm-pricing before running one.
     "gpt-5.5": (5.00, 30.00),
     "gpt-4o-mini": (0.15, 0.60),
     "gpt-4o": (2.50, 10.00),

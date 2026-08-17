@@ -1,11 +1,13 @@
 """Unit tests for the shared model-config helpers used by the per-client and
 global settings endpoints."""
 from app.platforms.model_registry import (
+    AVAILABLE_MODELS,
     DEFAULT_ANALYSIS_MODEL,
     DEFAULT_ANALYSIS_PLATFORM,
     DEFAULT_MODELS,
     DEFAULT_RECOMMENDATION_MODEL,
     DEFAULT_RECOMMENDATION_PLATFORM,
+    model_requires_responses_api,
     resolve_model_config,
     validate_model_config,
 )
@@ -60,3 +62,40 @@ def test_validate_engine_model_must_match_its_platform():
         {"analysis_platform": "openai", "analysis_model": "gemini-2.5-flash"}
     )
     assert errors
+
+
+# ── OpenAI -pro models: Responses-API only ────────────────────────────────────
+
+def test_responses_only_is_scoped_to_openai():
+    assert model_requires_responses_api("openai", "gpt-5.5-pro")
+    assert not model_requires_responses_api("openai", "gpt-5.5")
+    # other providers ship -pro names that are ordinary chat models
+    assert not model_requires_responses_api("gemini", "gemini-2.5-pro")
+    assert not model_requires_responses_api("perplexity", "perplexity/sonar-pro")
+    # a -pro substring mid-id is not a -pro model
+    assert not model_requires_responses_api("openai", "gpt-5.5-pro-mini")
+
+
+def test_pro_model_is_selectable_for_monitoring():
+    assert "gpt-5.5-pro" in AVAILABLE_MODELS["openai"]
+    assert validate_model_config({"openai": "gpt-5.5-pro"}) == []
+
+
+def test_pro_model_rejected_for_both_engines():
+    for key, platform_key in (
+        ("analysis_model", "analysis_platform"),
+        ("recommendation_model", "recommendation_platform"),
+    ):
+        errors = validate_model_config({platform_key: "openai", key: "gpt-5.5-pro"})
+        assert len(errors) == 1
+        # the message must say why, not just "not available"
+        assert "Responses API" in errors[0]
+        assert "gpt-5.5" in errors[0]
+
+
+def test_gemini_pro_still_valid_for_an_engine():
+    """The -pro rule must not leak to platforms whose -pro models are fine."""
+    errors = validate_model_config(
+        {"analysis_platform": "gemini", "analysis_model": "gemini-2.5-pro"}
+    )
+    assert errors == []

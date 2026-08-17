@@ -7,8 +7,11 @@ Accepts a per-client model override via the `model` parameter in complete().
 When web grounding is enabled (settings.web_grounding_*), the request goes
 through the Responses API with the hosted `web_search` tool so the model
 answers from the live web. The Responses API is also the only surface that
-serves the *-pro models, so this path doubles as their fix. When grounding is
-off, the original chat.completions path is used unchanged.
+serves the *-pro models, so those route there whatever the grounding setting
+says — otherwise switching grounding off would 404 every -pro run. The tool is
+attached only when grounding is on, so an ungrounded -pro call is a plain
+Responses completion. Every other model with grounding off uses the original
+chat.completions path unchanged.
 """
 import time
 import uuid
@@ -121,7 +124,8 @@ class OpenAIAdapter(BasePlatformAdapter):
     async def _call_api(
         self, prompt_text: str, log, model: str
     ) -> tuple[str, int | None, int | None, list[dict], int]:
-        if _grounding_on():
+        from app.platforms.model_registry import model_requires_responses_api
+        if _grounding_on() or model_requires_responses_api("openai", model):
             return await self._call_responses(prompt_text, model)
         return await self._call_chat(prompt_text, model)
 
@@ -129,11 +133,11 @@ class OpenAIAdapter(BasePlatformAdapter):
         self, prompt_text: str, model: str
     ) -> tuple[str, int | None, int | None, list[dict], int]:
         from app.platforms.model_registry import model_supports_temperature
-        kwargs: dict = {
-            "model": model,
-            "input": prompt_text,
-            "tools": [{"type": "web_search"}],
-        }
+        kwargs: dict = {"model": model, "input": prompt_text}
+        # Reached with grounding off only for a -pro model, which has no other
+        # endpoint; an ungrounded call must not silently buy web searches.
+        if _grounding_on():
+            kwargs["tools"] = [{"type": "web_search"}]
         # Shared framing, identical across all four platforms (see grounding).
         # On the Responses API the system turn is `instructions`.
         system = grounding.system_prompt()

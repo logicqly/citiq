@@ -44,12 +44,12 @@ async def _fetch_openai(api_key: str) -> list[str]:
     client = AsyncOpenAI(api_key=api_key)
     response = await client.models.list()
     keep = re.compile(r"^(gpt-|o[0-9])")
-    # `-pro` is excluded because OpenAI serves those models ONLY on the
-    # Responses API. Every call path here uses v1/chat/completions, so offering
-    # one in the model picker produced a hard 404 at call time ("This is not a
-    # chat model...") — a model the engine physically cannot use must not be
-    # selectable.
-    skip = re.compile(r"(realtime|audio|transcribe|tts|image|codex|search|instruct|vision-preview|-chat-latest|-pro$|\d{4}-\d{2}-\d{2}|-[01]\d{3}$)")
+    # `-pro` is kept. OpenAI serves those models on the Responses API only, and
+    # the monitoring adapter routes them there regardless of the web-grounding
+    # setting (platforms/openai.OpenAIAdapter._call_api), so they are callable.
+    # The analysis and recommendation engines still use v1/chat/completions and
+    # would 404 on one, which model_registry.validate_model_config rejects.
+    skip = re.compile(r"(realtime|audio|transcribe|tts|image|codex|search|instruct|vision-preview|-chat-latest|\d{4}-\d{2}-\d{2}|-[01]\d{3}$)")
     models = sorted(
         {m.id for m in response.data if keep.match(m.id) and not skip.search(m.id)},
         reverse=True,

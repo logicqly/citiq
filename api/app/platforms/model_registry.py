@@ -23,6 +23,23 @@ def model_supports_json_object_mode(model: str) -> bool:
     return not bool(_NO_TEMPERATURE_RE.match(model))
 
 
+# OpenAI serves its `-pro` models on the Responses API only; v1/chat/completions
+# answers a hard 404 ("This is not a chat model and thus not supported in the
+# v1/chat/completions endpoint"). Callers route on this rather than on the
+# web-grounding flag, which is a separate concern and can be switched off.
+_RESPONSES_ONLY_RE = re.compile(r"-pro$")
+
+
+def model_requires_responses_api(platform: str, model: str) -> bool:
+    """True when a model can only be reached through OpenAI's Responses API.
+
+    Scoped to the openai platform on purpose: other providers ship `-pro` names
+    (``gemini-2.5-pro``, ``perplexity/sonar-pro``) that have nothing to do with
+    the Responses API and must keep using their own chat endpoints.
+    """
+    return platform == "openai" and bool(_RESPONSES_ONLY_RE.search(model))
+
+
 # Anthropic's dynamic-filtering web-search tool (web_search_20260209) is only
 # available on Opus 4.6/4.7/4.8 and Sonnet 4.6; older models (incl. the default
 # Haiku 4.5) use the basic variant. See the claude-api server-tools reference.
@@ -44,13 +61,18 @@ def get_anthropic_web_search_tool(model: str, max_uses: int) -> dict:
 
 
 AVAILABLE_MODELS: dict[str, list[str]] = {
-    # NOTE: no `-pro` models here. OpenAI serves those on the Responses API
-    # only, and every call path in this codebase uses v1/chat/completions, so
-    # selecting one returned a 404 ("This is not a chat model and thus not
-    # supported in the v1/chat/completions endpoint") at call time. The live
-    # fetcher applies the same exclusion (model_fetcher._fetch_openai).
+    # `-pro` models are selectable for monitoring only. OpenAI serves them on
+    # the Responses API alone, which the monitoring adapter uses (see
+    # platforms/openai.OpenAIAdapter._call_api), while the analysis and
+    # recommendation engines call v1/chat/completions and would 404 on one —
+    # validate_model_config rejects them for those two fields.
+    #
+    # This hardcoded list is only the fallback for when a live fetch has not
+    # succeeded; the fetcher supplies the authoritative set, so `-pro` variants
+    # beyond the one below appear automatically once OpenAI serves them.
     "openai": [
         # GPT-5.x family (latest generation)
+        "gpt-5.5-pro",
         "gpt-5.5",
         "gpt-5.4",
         "gpt-5.4-mini",
@@ -472,6 +494,17 @@ def validate_model_config(config: dict, enabled: list[str] | None = None) -> lis
             allowed = live.get(platform, [])
             if value not in allowed:
                 errors.append(f"Model '{value}' not available for platform '{platform}'")
+            elif model_requires_responses_api(platform, value):
+                # Selectable for monitoring, but not here: both engines call
+                # v1/chat/completions with response_format=json_object, which
+                # the Responses API does not serve.
+                engine = key.replace("_model", "")
+                errors.append(
+                    f"The {engine} engine cannot use '{value}': OpenAI serves '-pro' "
+                    f"models only on the Responses API, which the engines do not use. "
+                    f"Pick a non-pro model such as 'gpt-5.5'. '{value}' is still "
+                    f"available as the OpenAI monitoring model."
+                )
         elif key in ("analysis_prompt", "recommendation_prompt"):
             pass  # any string value is valid; empty string resets to the built-in default
         elif key in live:

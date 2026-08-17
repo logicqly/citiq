@@ -1,51 +1,82 @@
 """
-Only models the engine can actually call may be selectable.
+Only models a given call path can actually reach may be selectable there.
 
-Every OpenAI call path in this codebase uses v1/chat/completions. OpenAI serves
-its `-pro` reasoning models on the Responses API ONLY, so one appearing in the
-model picker is not a bad choice — it is an impossible one. Selecting
+OpenAI serves its `-pro` reasoning models on the Responses API ONLY. Selecting
 gpt-5.5-pro for the analysis engine failed every analysis call in a production
 run with:
 
     404 - This is not a chat model and thus not supported in the
           v1/chat/completions endpoint. Did you mean to use v1/completions?
 
-The exclusion has to hold in both places a model list comes from: the hardcoded
-fallback here, and the live fetch that overwrites it.
+The first fix was a blanket one: strip `-pro` from every list, everywhere. That
+was wider than the cause. The monitoring adapter does reach the Responses API
+(platforms/openai.OpenAIAdapter._call_api) and can call these models; only the
+analysis and recommendation engines are stuck on v1/chat/completions, which
+they also call with response_format=json_object. So the rule is per-field:
+
+  - monitoring model (the `openai` key)   -> `-pro` allowed, routed to Responses
+  - analysis_model / recommendation_model -> `-pro` rejected by validation
+
+These tests pin both halves, so neither the over-wide block nor the 404 returns.
 """
 import re
 
-from app.platforms.model_registry import AVAILABLE_MODELS, DEFAULT_ANALYSIS_MODEL, DEFAULT_MODELS
+from app.platforms.model_registry import (
+    AVAILABLE_MODELS,
+    DEFAULT_ANALYSIS_MODEL,
+    DEFAULT_MODELS,
+    model_requires_responses_api,
+    validate_model_config,
+)
 
 
-def test_no_pro_models_are_offered_for_openai():
-    offered = AVAILABLE_MODELS["openai"]
-    assert [m for m in offered if m.endswith("-pro")] == []
-
-
-def test_the_live_fetcher_skips_pro_models_too():
-    """A refreshed list must not reintroduce what the fallback excludes."""
-    from app.platforms.model_fetcher import _fetch_openai
+def _fetcher_skip_pattern() -> re.Pattern:
+    """The fetcher's skip regex is defined inline; pull it out and apply it the
+    same way the fetcher does, so these tests track the real expression."""
     import inspect
 
-    # The skip pattern is defined inline in the fetcher; pull it out and apply
-    # it the same way the fetcher does, so this tracks the real regex.
-    src = inspect.getsource(_fetch_openai)
-    skip_src = re.search(r'skip = re\.compile\(r"(.+)"\)', src).group(1)
-    skip = re.compile(skip_src)
+    from app.platforms.model_fetcher import _fetch_openai
 
+    src = inspect.getsource(_fetch_openai)
+    return re.compile(re.search(r'skip = re\.compile\(r"(.+)"\)', src).group(1))
+
+
+def test_pro_models_are_offered_for_monitoring():
+    """The fallback list carries one, and the live fetch must not strip them."""
+    assert [m for m in AVAILABLE_MODELS["openai"] if m.endswith("-pro")]
+
+    skip = _fetcher_skip_pattern()
     for model in ["gpt-5.5-pro", "gpt-5-pro", "o1-pro", "o3-pro"]:
-        assert skip.search(model), f"{model} would be offered but cannot be called"
+        assert not skip.search(model), f"{model} is callable on Responses and must stay selectable"
+
+
+def test_pro_model_is_valid_as_the_monitoring_model():
+    assert validate_model_config({"openai": "gpt-5.5-pro"}) == []
+
+
+def test_pro_models_are_rejected_for_the_engines():
+    """The original 404: an engine pointed at a Responses-only model."""
+    for model_key, platform_key in (
+        ("analysis_model", "analysis_platform"),
+        ("recommendation_model", "recommendation_platform"),
+    ):
+        errors = validate_model_config({platform_key: "openai", model_key: "gpt-5.5-pro"})
+        assert errors, f"{model_key}=gpt-5.5-pro would 404 at call time"
+        assert "Responses API" in errors[0]
+
+
+def test_the_pro_rule_is_openai_only():
+    """Other providers ship -pro names that are ordinary chat models."""
+    assert not model_requires_responses_api("gemini", "gemini-2.5-pro")
+    assert not model_requires_responses_api("perplexity", "perplexity/sonar-pro")
+    assert validate_model_config(
+        {"analysis_platform": "gemini", "analysis_model": "gemini-2.5-pro"}
+    ) == []
 
 
 def test_ordinary_chat_models_are_still_offered():
     """The exclusion must not be so broad it removes usable models."""
-    from app.platforms.model_fetcher import _fetch_openai
-    import inspect
-
-    src = inspect.getsource(_fetch_openai)
-    skip_src = re.search(r'skip = re\.compile\(r"(.+)"\)', src).group(1)
-    skip = re.compile(skip_src)
+    skip = _fetcher_skip_pattern()
 
     for model in ["gpt-5.5", "gpt-4o", "gpt-4o-mini", "o3", "gpt-5-mini"]:
         assert not skip.search(model), f"{model} is callable and must stay selectable"

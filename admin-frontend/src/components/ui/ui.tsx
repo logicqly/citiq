@@ -19,6 +19,16 @@ export function platMeta(id: string | null | undefined) {
   return p ?? { id: id ?? "", label: id ?? "-", c: "var(--ink4)" };
 }
 
+// OpenAI serves its "-pro" models on the Responses API only. Monitoring calls
+// go through that API, so a "-pro" model is a valid monitoring choice; the
+// analysis and recommendation engines call chat completions and would fail on
+// one, so they are offered the rest of the list. The API enforces the same rule
+// (model_registry.validate_model_config); this only keeps the picker honest.
+export function engineModels(platform: string, models: string[]): string[] {
+  if (platform !== "openai") return models;
+  return models.filter((m) => !m.endsWith("-pro"));
+}
+
 export function PlatformCell({ platform }: { platform: string | null | undefined }) {
   if (!platform) return <span className="dim">-</span>;
   const p = platMeta(platform);

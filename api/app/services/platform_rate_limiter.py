@@ -113,6 +113,30 @@ def _report_outage(platform: str, error: str) -> None:
     )
 
 
+def credential_fingerprint() -> dict:
+    """Non-reversible description of the credential this process will present.
+
+    A credential mismatch between this service and Redis is invisible from
+    either side alone: both can report values that "match" what is stored while
+    the running processes disagree, because each captured its environment at a
+    different moment. Comparing a SHA-256 prefix of what this process actually
+    holds against the same hash of the stored secret settles which side is
+    stale, without ever putting the secret in a log.
+    """
+    import hashlib
+    from urllib.parse import urlparse
+
+    p = urlparse(settings.redis_url)
+    pw = p.password or ""
+    return {
+        "host": p.hostname,
+        "port": p.port,
+        "username": p.username or "(none)",
+        "password_len": len(pw),
+        "password_fingerprint": hashlib.sha256(pw.encode()).hexdigest()[:12] if pw else "(empty)",
+    }
+
+
 async def check_rate_limiter_health() -> tuple[bool, str | None]:
     """Probe the limiter's Redis connection. Returns (ok, error).
 

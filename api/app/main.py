@@ -49,17 +49,24 @@ async def lifespan(app: FastAPI):
     # by design, so a broken connection silently removes ALL pacing and the
     # first symptom is provider 429s that read like a misconfigured limit. Say
     # so at boot instead — but never block startup on it.
-    from app.services.platform_rate_limiter import check_rate_limiter_health
+    from app.services.platform_rate_limiter import (
+        check_rate_limiter_health,
+        credential_fingerprint,
+    )
 
     limiter_ok, limiter_error = await check_rate_limiter_health()
     if limiter_ok:
-        logger.info("platform_rate_limiter_ready")
+        logger.info("platform_rate_limiter_ready", **credential_fingerprint())
     else:
+        # The fingerprint is what makes a credential mismatch diagnosable: it
+        # can be compared against a hash of the stored secret to tell a stale
+        # process from a wrong value, which reading either side alone cannot.
         logger.error(
             "platform_rate_limiter_unreachable_at_startup",
             error=limiter_error,
             impact="NO rate limiting will be applied; every call goes to the provider unpaced",
-            hint="check REDIS_URL against the Redis service credentials",
+            hint="compare password_fingerprint with sha256 of the Redis service's REDIS_PASSWORD",
+            **credential_fingerprint(),
         )
 
     scheduler_task = None

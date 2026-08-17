@@ -44,18 +44,19 @@ def get_anthropic_web_search_tool(model: str, max_uses: int) -> dict:
 
 
 AVAILABLE_MODELS: dict[str, list[str]] = {
+    # NOTE: no `-pro` models here. OpenAI serves those on the Responses API
+    # only, and every call path in this codebase uses v1/chat/completions, so
+    # selecting one returned a 404 ("This is not a chat model and thus not
+    # supported in the v1/chat/completions endpoint") at call time. The live
+    # fetcher applies the same exclusion (model_fetcher._fetch_openai).
     "openai": [
         # GPT-5.x family (latest generation)
-        "gpt-5.5-pro",
         "gpt-5.5",
-        "gpt-5.4-pro",
         "gpt-5.4",
         "gpt-5.4-mini",
         "gpt-5.4-nano",
-        "gpt-5.2-pro",
         "gpt-5.2",
         "gpt-5.1",
-        "gpt-5-pro",
         "gpt-5",
         "gpt-5-mini",
         "gpt-5-nano",
@@ -70,7 +71,6 @@ AVAILABLE_MODELS: dict[str, list[str]] = {
         "o4-mini",
         "o3",
         "o3-mini",
-        "o1-pro",
         "o1",
         "o1-mini",
         # Legacy

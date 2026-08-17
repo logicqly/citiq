@@ -17,6 +17,7 @@ They also still cover the older "crawled for hours" failure: no reservation may
 outlive its slot and block later callers indefinitely.
 """
 import asyncio
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -184,3 +185,81 @@ async def test_limit_zero_disables_limiter(fake_redis, monkeypatch):
     # A disabled platform acquires instantly and touches nothing.
     await prl.acquire_platform_token("openai")
     assert fake.value == {}
+
+
+# ── Outage visibility ─────────────────────────────────────────────────────────
+#
+# Redis auth was broken in production for weeks. Because the limiter fails open,
+# nothing broke visibly — there was simply no rate limiting at all, and the only
+# trace was a WARN repeated dozens of times a second, which buried itself. These
+# assert the outage is reported once, loudly, and is queryable without logs.
+
+@pytest.fixture(autouse=True)
+def _reset_outage_state():
+    prl._outage_reported.clear()
+    yield
+    prl._outage_reported.clear()
+
+
+async def test_outage_is_reported_at_error_level_once_per_platform(monkeypatch, fake_redis):
+    fake, _ = fake_redis
+    errors: list[tuple] = []
+    debugs: list[tuple] = []
+    monkeypatch.setattr(prl.logger, "error", lambda *a, **k: errors.append((a, k)))
+    monkeypatch.setattr(prl.logger, "debug", lambda *a, **k: debugs.append((a, k)))
+
+    async def boom(*a, **k):
+        raise RuntimeError("invalid username-password pair or user is disabled.")
+
+    monkeypatch.setattr(fake, "eval", boom)
+
+    for _ in range(5):
+        await prl.acquire_platform_token("perplexity")
+
+    # Loud once, quiet thereafter — the noise is what hid this last time.
+    assert len(errors) == 1
+    assert len(debugs) == 4
+    assert "NO rate limiting" in errors[0][1]["impact"]
+
+
+async def test_each_platform_reports_its_own_outage(monkeypatch, fake_redis):
+    fake, _ = fake_redis
+    errors: list[tuple] = []
+    monkeypatch.setattr(prl.logger, "error", lambda *a, **k: errors.append((a, k)))
+    monkeypatch.setattr(prl.logger, "debug", lambda *a, **k: None)
+
+    async def boom(*a, **k):
+        raise RuntimeError("nope")
+
+    monkeypatch.setattr(fake, "eval", boom)
+
+    await prl.acquire_platform_token("perplexity")
+    await prl.acquire_platform_token("gemini")
+    assert len(errors) == 2
+
+
+async def test_health_check_reports_ok_when_redis_answers(fake_redis, monkeypatch):
+    fake, _ = fake_redis
+    monkeypatch.setattr(fake, "ping", AsyncMock(return_value=True), raising=False)
+    ok, error = await prl.check_rate_limiter_health()
+    assert ok is True
+    assert error is None
+
+
+async def test_health_check_reports_the_reason_when_redis_rejects_us(fake_redis, monkeypatch):
+    fake, _ = fake_redis
+
+    async def boom():
+        raise RuntimeError("invalid username-password pair or user is disabled.")
+
+    monkeypatch.setattr(fake, "ping", boom, raising=False)
+    ok, error = await prl.check_rate_limiter_health()
+    assert ok is False
+    assert "username-password" in error
+
+
+async def test_health_check_reports_a_missing_client(monkeypatch):
+    monkeypatch.setattr(prl, "_get_async_redis", lambda: None)
+    ok, error = await prl.check_rate_limiter_health()
+    assert ok is False
+    assert error

@@ -45,6 +45,23 @@ logger = structlog.get_logger()
 async def lifespan(app: FastAPI):
     logger.info("citiq_api_startup", log_level=settings.log_level)
 
+    # Prove the rate limiter can reach Redis before any run does. It fails open
+    # by design, so a broken connection silently removes ALL pacing and the
+    # first symptom is provider 429s that read like a misconfigured limit. Say
+    # so at boot instead — but never block startup on it.
+    from app.services.platform_rate_limiter import check_rate_limiter_health
+
+    limiter_ok, limiter_error = await check_rate_limiter_health()
+    if limiter_ok:
+        logger.info("platform_rate_limiter_ready")
+    else:
+        logger.error(
+            "platform_rate_limiter_unreachable_at_startup",
+            error=limiter_error,
+            impact="NO rate limiting will be applied; every call goes to the provider unpaced",
+            hint="check REDIS_URL against the Redis service credentials",
+        )
+
     scheduler_task = None
     if settings.scheduler_enabled:
         from app.services.inline_scheduler import run_scheduler_loop
@@ -126,4 +143,21 @@ register_v1_error_handlers(app)
 
 @app.get("/health")
 async def health() -> dict:
-    return {"status": "ok", "service": "citiq-api"}
+    """Liveness plus the one dependency whose failure is otherwise invisible.
+
+    The rate limiter fails open, so a Redis outage does not break requests — it
+    quietly removes all pacing. Reporting it here makes "are we rate limiting?"
+    answerable without reading logs. Status stays "ok" because the service is
+    genuinely serving; `rate_limiter` carries the degradation.
+    """
+    from app.services.platform_rate_limiter import check_rate_limiter_health
+
+    limiter_ok, limiter_error = await check_rate_limiter_health()
+    return {
+        "status": "ok",
+        "service": "citiq-api",
+        "rate_limiter": {
+            "ok": limiter_ok,
+            **({"error": limiter_error} if limiter_error else {}),
+        },
+    }

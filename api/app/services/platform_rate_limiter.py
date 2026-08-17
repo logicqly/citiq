@@ -84,6 +84,50 @@ _DEFAULT_LIMITS: dict[str, int] = {
 
 _redis_client = None
 
+# Platforms whose limiter outage has already been reported, so the ERROR below
+# is logged once per platform per process instead of once per call. The first
+# occurrence of this failure produced dozens of identical WARN lines a second,
+# which is how an outage that disabled rate limiting entirely stayed
+# unnoticed: the signal was buried in its own noise.
+_outage_reported: set[str] = set()
+
+
+def _report_outage(platform: str, error: str) -> None:
+    """Log a limiter outage loudly, once per platform.
+
+    ERROR, not WARN: while this is failing there is NO rate limiting at all —
+    every call goes straight to the provider unpaced, and the first symptom is
+    provider 429s that look like a misconfigured limit rather than a limiter
+    that never ran. It is worth waking someone for.
+    """
+    if platform in _outage_reported:
+        logger.debug("platform_rate_limiter_unavailable", platform=platform, error=error)
+        return
+    _outage_reported.add(platform)
+    logger.error(
+        "platform_rate_limiter_unavailable",
+        platform=platform,
+        error=error,
+        impact="NO rate limiting is being applied; calls go to the provider unpaced",
+        hint="check REDIS_URL credentials against the Redis service; expect provider 429s until fixed",
+    )
+
+
+async def check_rate_limiter_health() -> tuple[bool, str | None]:
+    """Probe the limiter's Redis connection. Returns (ok, error).
+
+    Called at startup and exposed on /health so a credential drift announces
+    itself immediately, instead of surfacing weeks later as provider 429s.
+    """
+    r = _get_async_redis()
+    if r is None:
+        return False, "redis client could not be created"
+    try:
+        await r.ping()
+        return True, None
+    except Exception as exc:  # noqa: BLE001 - reported, never raised
+        return False, str(exc)
+
 
 def _get_async_redis():
     """Lazy-init async Redis client (singleton)."""
@@ -130,7 +174,7 @@ async def acquire_platform_token(platform: str) -> None:
     try:
         wait_ms = float(await r.eval(_RESERVE_LUA, 1, key, interval_ms, max_ahead_ms))
     except Exception as exc:
-        logger.warning("platform_rate_limiter_unavailable", platform=platform, error=str(exc))
+        _report_outage(platform, str(exc))
         return  # Fail open
 
     if wait_ms < 0:

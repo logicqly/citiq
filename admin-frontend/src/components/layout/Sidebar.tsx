@@ -26,7 +26,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
     <aside className={`side${open ? " open" : ""}`}>
       <div className="brand">
         <CitiqMark size={25} />
-        <div className="wm">Citiq <span>Logicqly</span></div>
+        <div className="wm">Citiq</div>
         <span className="env">ADMIN</span>
       </div>
 

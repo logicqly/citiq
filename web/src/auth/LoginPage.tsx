@@ -95,7 +95,7 @@ export function LoginPage() {
             {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-        <div className="footer-note" style={{ textAlign: "center" }}>Citiq by Logicqly, citiq.ai</div>
+        <div className="footer-note" style={{ textAlign: "center" }}>citiq.ai</div>
       </div>
     </div>
   );

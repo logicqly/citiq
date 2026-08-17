@@ -58,11 +58,11 @@ export function RunStatusChip({ status }: { status: string }) {
 }
 
 // Client-friendly lifecycle labels (read-only view):
-// pending -> "In review at Logicqly", approved -> "In production",
+// pending -> "In review", approved -> "In production",
 // implemented -> "Published".
 export const LIFE_CLIENT: Record<string, { tone: "" | "good" | "warn" | "bad"; label: string }> = {
-  pending: { tone: "warn", label: "In review at Logicqly" },
-  revision_requested: { tone: "warn", label: "In review at Logicqly" },
+  pending: { tone: "warn", label: "In review" },
+  revision_requested: { tone: "warn", label: "In review" },
   approved: { tone: "", label: "In production" },
   implemented: { tone: "good", label: "Published" },
 };

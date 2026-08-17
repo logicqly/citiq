@@ -94,7 +94,7 @@ function RecDrawer({ recId, onClose }: { recId: string; onClose: () => void }) {
                         )}
                         {LIFE_CLIENT[h.new_status]?.label ?? h.new_status}
                       </b>{" "}
-                      <span className="dim2">by {h.actor === "engine" ? "Engine" : "Logicqly"}</span>
+                      <span className="dim2">by {h.actor === "engine" ? "Engine" : "Reviewer"}</span>
                       <div className="w">{relTime(h.created_at)}</div>
                     </div>
                   ))}
@@ -104,7 +104,7 @@ function RecDrawer({ recId, onClose }: { recId: string; onClose: () => void }) {
 
             <div className="dsec">
               <p className="dim" style={{ fontSize: 12 }}>
-                Questions about this recommendation? Your Logicqly account manager reviews the queue with you every week.
+                Questions about this recommendation? Your account manager reviews the queue with you every week.
               </p>
             </div>
           </>
@@ -149,7 +149,7 @@ export function RecommendationsPage() {
         <div className="grow">
           <h1 className="page">Recommendations</h1>
           <div className="sub">
-            {summary?.total ?? 0} in the current cycle, impact-ranked, every item is human-reviewed by the Logicqly team before work starts
+            {summary?.total ?? 0} in the current cycle, impact-ranked, every item is human-reviewed before work starts
           </div>
         </div>
       </div>
@@ -158,7 +158,7 @@ export function RecommendationsPage() {
         <div className="banner">
           <span className="bi" style={{ color: "var(--ink3)" }}><InfoOutlinedIcon style={{ fontSize: 15 }} /></span>
           <div>
-            <b>{pending} recommendation{pending > 1 ? "s" : ""} in review at Logicqly</b>
+            <b>{pending} recommendation{pending > 1 ? "s" : ""} in review</b>
             <div className="note">
               Our team approves, refines or rejects engine output before it reaches production, nothing is published without a human sign-off.
             </div>

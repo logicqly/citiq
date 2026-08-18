@@ -97,24 +97,9 @@ async def _dispatch(
         return raw_text or "{}", in_tok or 0, out_tok or 0
 
     # default: openai
-    from openai import AsyncOpenAI
+    from app.platforms.llm_client import openai_chat
 
-    from app.platforms.model_registry import (
-        model_supports_json_object_mode,
-        model_supports_temperature,
+    raw_text, in_tok, out_tok = await openai_chat(
+        model, messages, temperature=settings.generation_temperature, json_mode=True
     )
-
-    oai = AsyncOpenAI(
-        api_key=settings.openai_api_key,
-        http_client=instrumented_httpx_client(),
-    )
-    kwargs: dict = {"model": model, "messages": messages}
-    if model_supports_temperature(model):
-        kwargs["temperature"] = settings.generation_temperature
-    if model_supports_json_object_mode(model):
-        kwargs["response_format"] = {"type": "json_object"}
-    resp = await oai.chat.completions.create(**kwargs)
-    raw_text = resp.choices[0].message.content or "{}"
-    in_tok = resp.usage.prompt_tokens if resp.usage else 0
-    out_tok = resp.usage.completion_tokens if resp.usage else 0
-    return raw_text, in_tok or 0, out_tok or 0
+    return raw_text or "{}", in_tok or 0, out_tok or 0

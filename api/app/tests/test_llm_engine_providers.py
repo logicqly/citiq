@@ -91,7 +91,7 @@ async def test_analyzer_routes_gemini_to_gemini_helper_not_openai():
 
     gem = AsyncMock(return_value=("{}", 1, 2))
     with patch("app.platforms.llm_client.gemini_chat", gem), \
-         patch("app.analysis.analyzer.AsyncOpenAI") as oai:
+         patch("openai.AsyncOpenAI") as oai:
         result = await analyzer._call_llm([{"role": "user", "content": "q"}], MagicMock())
 
     assert result == ("{}", 1, 2)
@@ -106,7 +106,7 @@ async def test_analyzer_routes_perplexity_to_perplexity_helper_not_openai():
 
     ppx = AsyncMock(return_value=("{}", 1, 2))
     with patch("app.platforms.llm_client.perplexity_chat", ppx), \
-         patch("app.analysis.analyzer.AsyncOpenAI") as oai:
+         patch("openai.AsyncOpenAI") as oai:
         result = await analyzer._call_llm([{"role": "user", "content": "q"}], MagicMock())
 
     assert result == ("{}", 1, 2)
@@ -116,7 +116,7 @@ async def test_analyzer_routes_perplexity_to_perplexity_helper_not_openai():
 
 @pytest.mark.asyncio
 async def test_analyzer_still_defaults_to_openai():
-    """Default (no engine override) still uses the inline OpenAI path."""
+    """Default (no engine override) still routes to the OpenAI helper."""
     analyzer = _analyzer_for("openai", "gpt-4o-mini")
     assert analyzer._platform == "openai"
 
@@ -126,6 +126,90 @@ async def test_analyzer_still_defaults_to_openai():
     )
     mock_instance = MagicMock()
     mock_instance.chat.completions.create = AsyncMock(return_value=fake_resp)
-    with patch("app.analysis.analyzer.AsyncOpenAI", return_value=mock_instance):
+    with patch("openai.AsyncOpenAI", return_value=mock_instance):
         text, _, _ = await analyzer._call_llm([{"role": "user", "content": "q"}], MagicMock())
     assert text == "{}"
+
+
+# ── OpenAI endpoint routing (any model may be picked for any role) ────────────
+
+def _mock_openai(chat_resp=None, responses_resp=None) -> MagicMock:
+    instance = MagicMock()
+    instance.chat.completions.create = AsyncMock(return_value=chat_resp)
+    instance.responses.create = AsyncMock(return_value=responses_resp)
+    return instance
+
+
+_CHAT_OK = SimpleNamespace(
+    choices=[SimpleNamespace(message=SimpleNamespace(content='{"chat": true}'))],
+    usage=SimpleNamespace(prompt_tokens=1, completion_tokens=2),
+)
+_RESPONSES_OK = SimpleNamespace(
+    output_text='{"responses": true}',
+    usage=SimpleNamespace(input_tokens=3, output_tokens=4),
+)
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_sends_pro_models_to_the_responses_api():
+    """The original 404: -pro has no chat.completions endpoint. The engines must
+    reach it anyway, so nothing upstream has to restrict the choice."""
+    from app.platforms.llm_client import openai_chat
+
+    instance = _mock_openai(_CHAT_OK, _RESPONSES_OK)
+    with patch("openai.AsyncOpenAI", return_value=instance):
+        text, in_tok, out_tok = await openai_chat(
+            "gpt-5.5-pro", [{"role": "user", "content": "q"}], temperature=0.0
+        )
+
+    assert (text, in_tok, out_tok) == ('{"responses": true}', 3, 4)
+    instance.chat.completions.create.assert_not_awaited()
+    kwargs = instance.responses.create.call_args.kwargs
+    assert kwargs["model"] == "gpt-5.5-pro"
+    assert kwargs["input"] == [{"role": "user", "content": "q"}]
+    # gpt-5.x rejects both, so neither may be sent
+    assert "temperature" not in kwargs
+    assert "text" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_keeps_ordinary_models_on_chat_completions():
+    from app.platforms.llm_client import openai_chat
+
+    instance = _mock_openai(_CHAT_OK, _RESPONSES_OK)
+    with patch("openai.AsyncOpenAI", return_value=instance):
+        text, in_tok, out_tok = await openai_chat(
+            "gpt-4o-mini", [{"role": "user", "content": "q"}], temperature=0.3
+        )
+
+    assert (text, in_tok, out_tok) == ('{"chat": true}', 1, 2)
+    instance.responses.create.assert_not_awaited()
+    kwargs = instance.chat.completions.create.call_args.kwargs
+    assert kwargs["temperature"] == 0.3
+    assert kwargs["response_format"] == {"type": "json_object"}
+
+
+@pytest.mark.asyncio
+async def test_analysis_engine_runs_a_pro_model_end_to_end():
+    analyzer = _analyzer_for("openai", "gpt-5.5-pro")
+    instance = _mock_openai(_CHAT_OK, _RESPONSES_OK)
+
+    with patch("openai.AsyncOpenAI", return_value=instance):
+        text, _, _ = await analyzer._call_llm([{"role": "user", "content": "q"}], MagicMock())
+
+    assert text == '{"responses": true}'
+    instance.chat.completions.create.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_recommendation_engine_runs_a_pro_model_end_to_end():
+    from app.generation.llm import _dispatch
+
+    instance = _mock_openai(_CHAT_OK, _RESPONSES_OK)
+    with patch("openai.AsyncOpenAI", return_value=instance):
+        text, in_tok, out_tok = await _dispatch(
+            "openai", "gpt-5.5-pro", "brief please", max_tokens=512
+        )
+
+    assert (text, in_tok, out_tok) == ('{"responses": true}', 3, 4)
+    instance.chat.completions.create.assert_not_awaited()

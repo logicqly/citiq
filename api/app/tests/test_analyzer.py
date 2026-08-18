@@ -235,7 +235,7 @@ async def test_analyze_and_persist_happy_path():
         return_value=_make_llm_response(json.dumps(VALID_ANALYSIS_JSON))
     )
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls:
+    with patch("openai.AsyncOpenAI") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = mock_llm
         mock_cls.return_value = mock_instance
@@ -273,7 +273,7 @@ async def test_analyze_and_persist_not_cited():
         return_value=_make_llm_response(json.dumps(NOT_CITED_JSON))
     )
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls:
+    with patch("openai.AsyncOpenAI") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = mock_llm
         mock_cls.return_value = mock_instance
@@ -345,7 +345,7 @@ async def test_analyze_retries_on_parse_failure():
             return _make_llm_response(bad_json)
         return _make_llm_response(good_json)
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls:
+    with patch("openai.AsyncOpenAI") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = AsyncMock(side_effect=create_side_effect)
         mock_cls.return_value = mock_instance
@@ -374,7 +374,7 @@ async def test_analyze_raises_after_two_failures():
 
     mock_llm = AsyncMock(return_value=_make_llm_response("not json"))
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls:
+    with patch("openai.AsyncOpenAI") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = mock_llm
         mock_cls.return_value = mock_instance
@@ -407,7 +407,7 @@ async def test_retry_message_includes_previous_response():
             return _make_llm_response("bad output")
         return _make_llm_response(json.dumps(VALID_ANALYSIS_JSON))
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls:
+    with patch("openai.AsyncOpenAI") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = AsyncMock(side_effect=create_side_effect)
         mock_cls.return_value = mock_instance
@@ -440,7 +440,7 @@ async def test_competitors_cited_stored_as_list_of_dicts():
         return_value=_make_llm_response(json.dumps(VALID_ANALYSIS_JSON))
     )
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls:
+    with patch("openai.AsyncOpenAI") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = mock_llm
         mock_cls.return_value = mock_instance
@@ -467,7 +467,7 @@ async def test_content_gaps_stored_as_list():
         return_value=_make_llm_response(json.dumps(VALID_ANALYSIS_JSON))
     )
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls:
+    with patch("openai.AsyncOpenAI") as mock_cls:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = mock_llm
         mock_cls.return_value = mock_instance
@@ -533,7 +533,7 @@ async def test_analysis_routes_through_rate_limiter():
     db = _make_db()
     mock_llm = AsyncMock(return_value=_make_llm_response(json.dumps(VALID_ANALYSIS_JSON)))
 
-    with patch("app.analysis.analyzer.AsyncOpenAI") as mock_cls, \
+    with patch("openai.AsyncOpenAI") as mock_cls, \
          patch("app.analysis.analyzer.acquire_platform_token", new=AsyncMock()) as mock_token:
         mock_instance = MagicMock()
         mock_instance.chat.completions.create = mock_llm

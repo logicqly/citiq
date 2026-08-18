@@ -11,7 +11,6 @@ import json
 
 import structlog
 from anthropic import AsyncAnthropic
-from openai import AsyncOpenAI
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -310,23 +309,10 @@ class ResponseAnalyzer:
                 self._model, messages, temperature=_TEMPERATURE, max_tokens=max_tokens
             )
         else:
-            from app.platforms.model_registry import (
-                model_supports_json_object_mode,
-                model_supports_temperature,
+            from app.platforms.llm_client import openai_chat
+            content, input_tokens, output_tokens = await openai_chat(
+                self._model, messages, temperature=_TEMPERATURE, json_mode=True
             )
-            client = AsyncOpenAI(
-                api_key=settings.openai_api_key,
-                http_client=instrumented_httpx_client(),
-            )
-            kwargs: dict = {"model": self._model, "messages": messages}
-            if model_supports_temperature(self._model):
-                kwargs["temperature"] = _TEMPERATURE
-            if model_supports_json_object_mode(self._model):
-                kwargs["response_format"] = {"type": "json_object"}
-            resp = await client.chat.completions.create(**kwargs)
-            content = resp.choices[0].message.content or ""
-            input_tokens = resp.usage.prompt_tokens if resp.usage else None
-            output_tokens = resp.usage.completion_tokens if resp.usage else None
         return content, input_tokens, output_tokens
 
 

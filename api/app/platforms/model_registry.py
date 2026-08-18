@@ -33,6 +33,9 @@ _RESPONSES_ONLY_RE = re.compile(r"-pro$")
 def model_requires_responses_api(platform: str, model: str) -> bool:
     """True when a model can only be reached through OpenAI's Responses API.
 
+    Every OpenAI caller (the monitoring adapter and both engines) checks this to
+    pick an endpoint, which is what lets any model be selected for any role.
+
     Scoped to the openai platform on purpose: other providers ship `-pro` names
     (``gemini-2.5-pro``, ``perplexity/sonar-pro``) that have nothing to do with
     the Responses API and must keep using their own chat endpoints.
@@ -61,11 +64,10 @@ def get_anthropic_web_search_tool(model: str, max_uses: int) -> dict:
 
 
 AVAILABLE_MODELS: dict[str, list[str]] = {
-    # `-pro` models are selectable for monitoring only. OpenAI serves them on
-    # the Responses API alone, which the monitoring adapter uses (see
-    # platforms/openai.OpenAIAdapter._call_api), while the analysis and
-    # recommendation engines call v1/chat/completions and would 404 on one —
-    # validate_model_config rejects them for those two fields.
+    # `-pro` models are selectable everywhere: monitoring, analysis and
+    # recommendation. OpenAI serves them on the Responses API alone, so every
+    # OpenAI caller routes by model rather than assuming chat completions (see
+    # model_requires_responses_api and its two call sites).
     #
     # This hardcoded list is only the fallback for when a live fetch has not
     # succeeded; the fetcher supplies the authoritative set, so `-pro` variants
@@ -494,17 +496,6 @@ def validate_model_config(config: dict, enabled: list[str] | None = None) -> lis
             allowed = live.get(platform, [])
             if value not in allowed:
                 errors.append(f"Model '{value}' not available for platform '{platform}'")
-            elif model_requires_responses_api(platform, value):
-                # Selectable for monitoring, but not here: both engines call
-                # v1/chat/completions with response_format=json_object, which
-                # the Responses API does not serve.
-                engine = key.replace("_model", "")
-                errors.append(
-                    f"The {engine} engine cannot use '{value}': OpenAI serves '-pro' "
-                    f"models only on the Responses API, which the engines do not use. "
-                    f"Pick a non-pro model such as 'gpt-5.5'. '{value}' is still "
-                    f"available as the OpenAI monitoring model."
-                )
         elif key in ("analysis_prompt", "recommendation_prompt"):
             pass  # any string value is valid; empty string resets to the built-in default
         elif key in live:

@@ -50,6 +50,19 @@ export interface Client {
   // Per-client "Client display" override. null = following the global display
   // defaults; an object = customised/detached.
   display_config: Record<string, boolean> | null;
+  // Brand logo state. The bytes live behind /admin/clients/{id}/logo, never in
+  // this payload; logo_updated_at doubles as the cache-buster for previews.
+  has_logo: boolean;
+  logo_mime: string | null;
+  logo_filename: string | null;
+  logo_updated_at: string | null;
+}
+
+export interface ClientLogo {
+  has_logo: boolean;
+  logo_mime: string | null;
+  logo_filename: string | null;
+  logo_updated_at: string | null;
 }
 
 export interface ClientSummary extends Client {

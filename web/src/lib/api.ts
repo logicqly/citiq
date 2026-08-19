@@ -150,6 +150,10 @@ export const dashboard = {
   downloadRunPdf: (runId: string) => apiDownload(`/client/dashboard/runs/${runId}/report/pdf`),
   getRunCosts: (runId: string) => apiFetch<RunCostSummary>(`/client/dashboard/runs/${runId}/costs`),
   getCostSummary: () => apiFetch<ClientCostAverages>("/client/dashboard/cost-summary"),
+  // The brand logo an admin uploaded for this client. Authenticated like every
+  // other route here, so it is fetched as a blob and rendered from an object URL
+  // rather than pointed at directly from an <img src>.
+  getLogo: () => apiDownload("/client/dashboard/logo"),
 };
 
 export const recommendations = {

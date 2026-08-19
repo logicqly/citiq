@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import ImageRoundedIcon from "@mui/icons-material/ImageRounded";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
 import { clientsApi, settingsApi } from "../../api/client";
@@ -136,6 +137,123 @@ function ClientDisplayPanel({ clientId, client }: { clientId: string; client: Cl
   );
 }
 
+function ClientLogoPanel({ clientId, client }: { clientId: string; client: ClientDetail }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  // The logo endpoint needs the admin bearer token, so the preview cannot be a
+  // plain <img src>. Fetch the bytes and render an object URL instead. Keyed on
+  // logo_updated_at so a re-upload replaces the preview instead of showing the
+  // cached one.
+  const { data: blob } = useQuery({
+    queryKey: ["admin-client-logo", clientId, client.logo_updated_at],
+    queryFn: () => clientsApi.getLogoBlob(clientId),
+    enabled: client.has_logo,
+  });
+
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!blob) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(blob);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [blob]);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["admin-client", clientId] });
+    qc.invalidateQueries({ queryKey: ["admin-clients"] });
+    qc.invalidateQueries({ queryKey: ["admin-client-logo", clientId] });
+  };
+
+  const uploadMut = useMutation({
+    mutationFn: (file: File) => clientsApi.uploadLogo(clientId, file),
+    onSuccess: () => { invalidate(); toast("Logo saved"); },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      toast(detail || "Failed to upload logo", "err");
+    },
+  });
+
+  const removeMut = useMutation({
+    mutationFn: () => clientsApi.deleteLogo(clientId),
+    onSuccess: () => { invalidate(); toast("Logo removed"); },
+    onError: () => toast("Failed to remove logo", "err"),
+  });
+
+  const busy = uploadMut.isPending || removeMut.isPending;
+
+  function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // Reset the input so re-picking the same file still fires a change event.
+    e.target.value = "";
+    if (file) uploadMut.mutate(file);
+  }
+
+  async function removeLogo() {
+    const ok = await confirm({
+      title: "Remove logo?",
+      message: `${client.name}'s dashboard and reports fall back to the Citiq mark and text only.`,
+      confirmLabel: "Remove logo",
+      danger: true,
+    });
+    if (ok) removeMut.mutate();
+  }
+
+  return (
+    <div className="panel">
+      <div className="ph">
+        <h3>Brand logo</h3>
+        <span className="note">{client.has_logo ? client.logo_filename : "not set"}</span>
+      </div>
+      <div style={{ fontSize: 11.5, color: "var(--ink4)", lineHeight: 1.55, marginBottom: 14 }}>
+        Shown in {client.name}'s GEO Monitor header and printed on the cover of their generated
+        reports. PNG or SVG, up to 512 KB. A transparent background works best on both themes.
+      </div>
+
+      <div
+        style={{
+          display: "flex", alignItems: "center", justifyContent: "center",
+          minHeight: 96, padding: 16, marginBottom: 14,
+          border: "1px solid var(--bf)", borderRadius: 10, background: "var(--s4)",
+        }}
+      >
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt={`${client.name} logo`}
+            style={{ maxWidth: "100%", maxHeight: 64, objectFit: "contain" }}
+          />
+        ) : (
+          <div className="dim" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+            <ImageRoundedIcon style={{ fontSize: 16 }} />
+            {client.has_logo ? "Loading..." : "No logo uploaded"}
+          </div>
+        )}
+      </div>
+
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/png,image/svg+xml,.png,.svg"
+        style={{ display: "none" }}
+        onChange={pickFile}
+      />
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button className="btn pri" disabled={busy} onClick={() => fileInput.current?.click()}>
+          {uploadMut.isPending ? "Uploading..." : client.has_logo ? "Replace logo" : "Upload logo"}
+        </button>
+        {client.has_logo && (
+          <button className="btn sm" disabled={busy} onClick={removeLogo}>
+            {removeMut.isPending ? "Removing..." : "Remove"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DangerRow({ title, sub, action }: { title: string; sub: string; action: React.ReactNode }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, border: "1px solid var(--bf)", borderRadius: 10, padding: "12px 14px" }}>
@@ -252,6 +370,8 @@ export function ClientSettings() {
       </div>
 
       <ClientPlatformsPanel clientId={clientId!} client={client} />
+
+      <ClientLogoPanel clientId={clientId!} client={client} />
 
       <ClientDisplayPanel clientId={clientId!} client={client} />
 

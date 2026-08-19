@@ -3,6 +3,7 @@ import type {
   AdminUser,
   Client,
   ClientDetail,
+  ClientLogo,
   ClientSummary,
   ClientUser,
   Competitor,
@@ -141,6 +142,25 @@ export const clientsApi = {
 
   revertDisplay: async (id: string) =>
     http.delete<Client>(`/admin/clients/${await resolveClientId(id)}/display`).then((r) => r.data),
+
+  // ── Brand logo ──────────────────────────────────────────────────────────────
+  // The logo endpoint is authenticated, so an <img src> pointing at it would be
+  // rejected. Callers fetch the bytes here and render the object URL instead.
+  uploadLogo: async (id: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return http
+      .post<ClientLogo>(`/admin/clients/${await resolveClientId(id)}/logo`, form)
+      .then((r) => r.data);
+  },
+
+  deleteLogo: async (id: string) =>
+    http.delete<ClientLogo>(`/admin/clients/${await resolveClientId(id)}/logo`).then((r) => r.data),
+
+  getLogoBlob: async (id: string) =>
+    http
+      .get<Blob>(`/admin/clients/${await resolveClientId(id)}/logo`, { responseType: "blob" })
+      .then((r) => r.data),
 };
 
 // ── Client ID resolution ──────────────────────────────────────────────────────

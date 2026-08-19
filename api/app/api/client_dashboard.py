@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.client_dependencies import get_client_db, get_client_id_from_token, get_current_client_user
 from app.db import get_db
 from app.services.cost_service import batch_run_costs, get_client_cost_averages, get_run_cost_summary
+from app.services.logo_service import fetch_client_logo, logo_response_headers
 from app.services.report_service import assemble_run_report, build_pdf
 from app.models.analysis import Analysis, CitationType
 from app.models.client import Client
@@ -407,6 +408,28 @@ async def get_cost_summary(
     return await get_client_cost_averages(db, uuid.UUID(client_id))
 
 
+@router.get("/logo")
+async def get_client_logo(
+    _user=Depends(get_current_client_user),
+    client_id: str = Depends(get_client_id_from_token),
+    db: AsyncSession = Depends(get_client_db),
+) -> HTTPResponse:
+    """This client's brand logo, uploaded by an admin. 404 when none is set.
+
+    The client_id comes from the JWT like every other route here, so a tenant can
+    only ever fetch its own logo.
+    """
+    logo = await fetch_client_logo(db, uuid.UUID(client_id))
+    if logo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No logo set")
+    data, mime, _filename, updated_at = logo
+    return HTTPResponse(
+        content=data,
+        media_type=mime,
+        headers=logo_response_headers(mime, updated_at),
+    )
+
+
 @router.get("/runs/{run_id}/report/json")
 async def get_run_report_json(
     run_id: str,
@@ -445,7 +468,12 @@ async def get_run_report_pdf(
         )
     client_name = getattr(request.state, "client_name", "")
     report = await assemble_run_report(db, run.id, include_internal=False)
-    pdf_bytes = build_pdf(report, client_name=client_name)
+    logo = await fetch_client_logo(db, uuid.UUID(client_id))
+    pdf_bytes = build_pdf(
+        report,
+        client_name=client_name,
+        logo=(logo[0], logo[1]) if logo else None,
+    )
     filename = run.display_id or run_id
     return HTTPResponse(
         content=pdf_bytes,

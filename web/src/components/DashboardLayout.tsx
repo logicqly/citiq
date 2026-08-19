@@ -5,6 +5,7 @@ import LightModeRoundedIcon from "@mui/icons-material/LightModeRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../lib/theme";
+import { useClientLogo } from "../lib/useClientLogo";
 import { CitiqMark } from "./ui";
 
 export function DashboardLayout() {
@@ -13,6 +14,7 @@ export function DashboardLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const logoUrl = useClientLogo(user?.has_logo, user?.logo_updated_at);
 
   function handleLogout() {
     logout();
@@ -27,6 +29,12 @@ export function DashboardLayout() {
       <header className="top">
         <NavLink to="/dashboard" className="brand" end>
           <CitiqMark size={24} />
+          {logoUrl && (
+            <>
+              <span className="csep" aria-hidden="true" />
+              <img className="clogo" src={logoUrl} alt={`${user?.client_name ?? "Client"} logo`} />
+            </>
+          )}
           <div className="hidden sm:block">
             <div className="t1">GEO MONITOR</div>
             <div className="t2">{user?.client_name}</div>

@@ -51,6 +51,11 @@ dependencies = [
 
     # PDF report generation
     "reportlab>=4.2.0",
+
+    # SVG client logos on report covers (reportlab draws raster images natively
+    # but cannot read SVG). Optional at runtime: report_service skips an SVG
+    # logo rather than failing the build when this is missing.
+    "svglib>=1.5.1",
 ]
 
 [project.optional-dependencies]

@@ -306,6 +306,20 @@ Inside a client's detail view, the **Settings** tab lets you edit the core clien
 
 Use the **Status** dropdown to change state. Changes take effect immediately.
 
+**Brand logo:**
+
+The **Brand logo** panel on the same tab uploads the client's own logo (PNG or SVG, up to
+512 KB). Once uploaded it appears in two places:
+
+- the header of that client's GEO Monitor dashboard, beside the Citiq mark;
+- the cover page of every report that client's runs generate, from both the admin
+  console and the client's own download button.
+
+Use **Replace logo** to swap it and **Remove** to clear it. A client with no logo is
+unaffected: their dashboard and reports print text only, exactly as before. A logo with a
+transparent background reads best, since the dashboard supports both a light and a dark
+theme.
+
 ---
 
 ### 5.5 Managing Prompts

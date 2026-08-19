@@ -6,13 +6,17 @@ GET    /admin/clients                       — list clients (with computed fiel
 GET    /admin/clients/{client_id}           — client detail
 PUT    /admin/clients/{client_id}           — partial update
 PATCH  /admin/clients/{client_id}/status   — change status
+POST   /admin/clients/{client_id}/logo     — upload the client's brand logo
+GET    /admin/clients/{client_id}/logo     — the stored logo's bytes
+DELETE /admin/clients/{client_id}/logo     — remove the logo
 """
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response as HTTPResponse
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +40,13 @@ from app.platforms.model_registry import (
 from app.services.audit_service import log_audit
 from app.services.cost_service import get_client_cost_averages
 from app.services.display_config import resolve_display_config, validate_display_config
+from app.services.logo_service import (
+    LogoError,
+    MAX_LOGO_BYTES,
+    fetch_client_logo,
+    logo_response_headers,
+    validate_logo,
+)
 
 router = APIRouter(prefix="/admin/clients", tags=["admin-clients"])
 
@@ -151,6 +162,12 @@ class ClientOut(BaseModel):
     # defaults; a dict = customised/detached. The client-facing app renders off
     # the effective flags (resolved server-side in client auth).
     display_config: dict | None = None
+    # Brand logo state. The bytes are never inlined here — they are fetched from
+    # /admin/clients/{id}/logo — so the list response stays small.
+    has_logo: bool = False
+    logo_mime: str | None = None
+    logo_filename: str | None = None
+    logo_updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -578,6 +595,118 @@ async def revert_client_display(
     await db.commit()
     await db.refresh(client)
     return ClientOut.model_validate(client)
+
+
+# ── Brand logo ────────────────────────────────────────────────────────────────
+
+class ClientLogoOut(BaseModel):
+    has_logo: bool
+    logo_mime: str | None = None
+    logo_filename: str | None = None
+    logo_updated_at: datetime | None = None
+
+
+def _logo_out(client: Client) -> ClientLogoOut:
+    return ClientLogoOut(
+        has_logo=client.has_logo,
+        logo_mime=client.logo_mime,
+        logo_filename=client.logo_filename,
+        logo_updated_at=client.logo_updated_at,
+    )
+
+
+@router.post("/{client_id}/logo", response_model=ClientLogoOut)
+async def upload_client_logo(
+    client_id: uuid.UUID,
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+) -> ClientLogoOut:
+    """Upload (or replace) a client's brand logo — PNG or SVG, up to 512 KB.
+
+    The format is decided by sniffing the bytes, so a mislabelled upload is
+    rejected rather than stored and served under the wrong content type.
+    """
+    client = await _get_client_or_404(client_id, db)
+
+    # Read at most one byte past the limit: enough to know the upload is too
+    # large without buffering an arbitrarily big body first.
+    data = await file.read(MAX_LOGO_BYTES + 1)
+
+    try:
+        mime = validate_logo(data)
+    except LogoError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        )
+
+    client.logo_data = data
+    client.logo_mime = mime
+    client.logo_filename = (file.filename or "logo")[:255]
+    client.logo_updated_at = datetime.now(timezone.utc)
+
+    await log_audit(
+        db,
+        client_id=client_id,
+        action="client_logo_uploaded",
+        entity_type="client",
+        entity_id=client_id,
+        actor=admin.email,
+        details={"mime": mime, "filename": client.logo_filename, "bytes": len(data)},
+    )
+    await db.commit()
+    await db.refresh(client)
+    return _logo_out(client)
+
+
+@router.get("/{client_id}/logo")
+async def get_client_logo(
+    client_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+) -> HTTPResponse:
+    """The client's logo bytes, for the admin console preview."""
+    logo = await fetch_client_logo(db, client_id)
+    if logo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="This client has no logo"
+        )
+    data, mime, _filename, updated_at = logo
+    return HTTPResponse(
+        content=data,
+        media_type=mime,
+        headers=logo_response_headers(mime, updated_at),
+    )
+
+
+@router.delete("/{client_id}/logo", response_model=ClientLogoOut)
+async def delete_client_logo(
+    client_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    admin: AdminUser = Depends(get_current_admin),
+) -> ClientLogoOut:
+    """Remove a client's logo. The app and its reports fall back to text only."""
+    client = await _get_client_or_404(client_id, db)
+    if not client.has_logo:
+        return _logo_out(client)
+
+    client.logo_data = None
+    client.logo_mime = None
+    client.logo_filename = None
+    client.logo_updated_at = None
+
+    await log_audit(
+        db,
+        client_id=client_id,
+        action="client_logo_removed",
+        entity_type="client",
+        entity_id=client_id,
+        actor=admin.email,
+        details={},
+    )
+    await db.commit()
+    await db.refresh(client)
+    return _logo_out(client)
 
 
 # ── Cost summary ──────────────────────────────────────────────────────────────

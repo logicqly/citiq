@@ -37,6 +37,7 @@ from app.services.cost_service import (
     get_run_cost_summary,
 )
 from app.services.pipeline import run_analysis_stage, run_generation_stage, run_pipeline
+from app.services.logo_service import fetch_client_logo
 from app.services.report_service import assemble_run_report, build_pdf
 from app.services.run_orchestrator import start_run
 
@@ -486,7 +487,12 @@ async def get_run_report_pdf(
             detail="Report is only available for completed or partial runs",
         )
     report = await assemble_run_report(db, run_id, include_internal=True)
-    pdf_bytes = build_pdf(report, client_name=client.name)
+    logo = await fetch_client_logo(db, client.id)
+    pdf_bytes = build_pdf(
+        report,
+        client_name=client.name,
+        logo=(logo[0], logo[1]) if logo else None,
+    )
     filename = run.display_id or str(run_id)
     return HTTPResponse(
         content=pdf_bytes,

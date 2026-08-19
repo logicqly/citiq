@@ -12,6 +12,9 @@ For client reports (include_internal=False):
 For admin reports (include_internal=True):
   - Everything above plus rejected recommendations, cost_usd, latency_ms,
     platform_errors
+
+Both PDFs print the client's uploaded brand logo on the cover when the admin has
+set one (see logo_service); without one the cover is text only, exactly as before.
 """
 import io
 import uuid
@@ -167,8 +170,17 @@ def _opportunity_cell(result: dict) -> str:
     return f"{float(score):.1f} ({bucket})"
 
 
-def build_pdf(report: dict, client_name: str) -> bytes:
-    """Render report dict to PDF bytes using reportlab."""
+def build_pdf(
+    report: dict,
+    client_name: str,
+    logo: tuple[bytes, str] | None = None,
+) -> bytes:
+    """Render report dict to PDF bytes using reportlab.
+
+    `logo` is the client's brand logo as (bytes, mime) — see
+    logo_service.fetch_client_logo. A logo that cannot be rendered is skipped
+    rather than failing the report.
+    """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -204,6 +216,18 @@ def build_pdf(report: dict, client_name: str) -> bytes:
     story = []
 
     # ── Cover ────────────────────────────────────────────────────────────────
+    # The client's own logo leads the cover when they have one, so the report
+    # reads as theirs before the title does.
+    if logo is not None:
+        from app.services.logo_service import build_logo_flowable
+
+        logo_flowable = build_logo_flowable(
+            logo[0], logo[1], max_width_pt=60 * mm, max_height_pt=20 * mm
+        )
+        if logo_flowable is not None:
+            story.append(logo_flowable)
+            story.append(Spacer(1, 6 * mm))
+
     story.append(Paragraph("GEO Monitoring Report", h1))
     story.append(Paragraph(f"<b>Client:</b> {client_name}", body))
     story.append(Paragraph(f"<b>Run:</b> {run.get('display_id') or run['id']}", body))

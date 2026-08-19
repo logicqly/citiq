@@ -14,6 +14,10 @@ export interface ClientUser {
   // token payloads — callers read `display` off the context instead, which
   // always resolves to a complete set.
   display_config?: DisplayConfig;
+  // Whether an admin has uploaded a brand logo for this client, and when it last
+  // changed — the timestamp is what makes a replaced logo re-fetch.
+  has_logo?: boolean;
+  logo_updated_at?: string | null;
 }
 
 interface AuthState {

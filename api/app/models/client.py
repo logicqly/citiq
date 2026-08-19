@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String
+from sqlalchemy import Boolean, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -56,6 +56,21 @@ class Client(Base):
     # so later changes to the global defaults no longer affect it.
     display_config: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    # ── Brand logo (uploaded by an admin) ─────────────────────────────────────
+    # A PNG or SVG shown in the client-facing GEO Monitor header and printed on
+    # the cover of that client's run reports. NULL = no logo; the app falls back
+    # to the Citiq mark alone and the report cover prints text only.
+    #
+    # Deferred: every admin client-list query selects whole Client rows, and
+    # without this the list would pull one blob per client on each load.
+    logo_data: Mapped[bytes | None] = mapped_column(
+        LargeBinary, nullable=True, deferred=True
+    )
+    logo_mime: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Doubles as the cache key the frontends use to re-fetch after a re-upload.
+    logo_updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
     # ── Recommendations: generate automatically after a run's analysis? ──────
     # The per-client default for the trigger toggle. False means runs finish
     # with recommendations pending until an admin presses Generate.
@@ -82,6 +97,16 @@ class Client(Base):
     schedule_day_of_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
     last_scheduled_run_at: Mapped[datetime | None] = mapped_column(nullable=True)
     next_scheduled_run_at: Mapped[datetime | None] = mapped_column(nullable=True)
+
+    @property
+    def has_logo(self) -> bool:
+        """Whether a brand logo has been uploaded.
+
+        Reads logo_mime, not logo_data: the bytes are deferred, and touching them
+        outside an explicit query would emit a lazy load the async session cannot
+        service.
+        """
+        return self.logo_mime is not None
 
     # Relationships
     prompts: Mapped[list["Prompt"]] = relationship(back_populates="client")  # noqa: F821

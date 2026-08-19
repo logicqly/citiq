@@ -54,6 +54,10 @@ button:disabled{cursor:not-allowed}
 .top{position:sticky;top:0;z-index:30;background:var(--top-bg);backdrop-filter:blur(14px);border-bottom:1px solid var(--bf);height:58px;display:flex;align-items:center;gap:18px;padding:0 28px}
 .brand{display:flex;align-items:center;gap:11px;color:var(--ink1)}
 .brand svg{width:24px;height:24px;color:var(--white)}
+/* Client brand logo, uploaded per client by an admin. Sits after the Citiq
+   mark, capped so a wide wordmark cannot push the nav off the header. */
+.brand .csep{flex:0 0 1px;width:1px;height:20px;background:var(--b2)}
+.brand .clogo{display:block;height:24px;max-width:132px;object-fit:contain}
 .brand .t1{font-family:var(--mono);font-size:8.5px;letter-spacing:.24em;color:var(--ink4);font-weight:500}
 .brand .t2{font-size:13.5px;font-weight:800;letter-spacing:-.01em;margin-top:2px}
 .nav{display:flex;gap:2px;margin-left:16px;height:100%}

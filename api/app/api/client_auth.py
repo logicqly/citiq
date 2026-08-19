@@ -7,6 +7,7 @@ GET  /client/auth/me              — current user profile
 POST /client/auth/change-password — change own password (required on first login)
 """
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -72,6 +73,10 @@ class ClientUserOut(BaseModel):
     # Effective client-display flags (resolved from the client's override or the
     # global defaults). The client app renders every widget/tab/column off these.
     display_config: dict[str, bool] = {}
+    # Brand logo state. The app fetches the bytes from /client/dashboard/logo
+    # when has_logo is set, and re-fetches whenever logo_updated_at changes.
+    has_logo: bool = False
+    logo_updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -135,6 +140,8 @@ async def client_login(
             client_name=client.name,
             must_change_password=user.must_change_password,
             display_config=await _resolve_display(db, client),
+            has_logo=client.has_logo,
+            logo_updated_at=client.logo_updated_at,
         ),
         must_change_password=user.must_change_password,
     )
@@ -178,6 +185,8 @@ async def client_me(
         client_name=getattr(request.state, "client_name", ""),
         must_change_password=user.must_change_password,
         display_config=display_config,
+        has_logo=client.has_logo if client else False,
+        logo_updated_at=client.logo_updated_at if client else None,
     )
 
 

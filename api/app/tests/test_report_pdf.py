@@ -385,57 +385,67 @@ def test_citiq_wordmark_renders_for_the_cover():
     assert 0 < drawing.height <= 24.0
 
 
-def test_citiq_mark_renders_for_the_page_footer():
-    from app.services.report_service import _citiq_mark_drawing
-
-    drawing = _citiq_mark_drawing(height_pt=9)
-    assert drawing is not None, "the footer mark did not render"
-    assert 0 < drawing.height <= 9
-
-
-@pytest.mark.parametrize("source_name,vendored_attr", [
-    ("citiq-ful-logo.svg", "_CITIQ_LOGO_PATH"),
-    ("citiq-colored-logo.svg", "_CITIQ_MARK_PATH"),
-])
-def test_vendored_brand_assets_match_their_source(source_name, vendored_attr):
-    """The API copies must not drift from docs/brand.
+def test_vendored_wordmark_matches_the_brand_source():
+    """The API copy must not drift from docs/brand.
 
     Skipped where docs/ is not on disk: the API image is built from api/ alone,
     so this check only runs in the repo, which is where drift happens.
     """
     import pathlib
 
-    from app.services import report_service
+    from app.services.report_service import _CITIQ_LOGO_PATH
 
-    source = pathlib.Path(__file__).resolve().parents[3] / "docs" / "brand" / source_name
+    source = pathlib.Path(__file__).resolve().parents[3] / "docs" / "brand" / "citiq-ful-logo.svg"
     if not source.exists():
         pytest.skip("docs/brand is not present in this build context")
-    vendored = getattr(report_service, vendored_attr)
-    assert source.read_bytes() == vendored.read_bytes(), (
-        f"{vendored.name} has drifted from docs/brand/{source_name}"
+    assert source.read_bytes() == _CITIQ_LOGO_PATH.read_bytes(), (
+        "api/app/assets/citiq-logo.svg has drifted from docs/brand/citiq-ful-logo.svg"
     )
 
 
-def test_report_still_builds_when_the_brand_assets_are_missing(monkeypatch):
-    """Branding is never worth failing a client's download over.
-
-    Covers the cover lockup and the footer mark together: the footer is stamped
-    onto every page, so a missing asset there would break every page, not one.
-    """
+def test_report_still_builds_when_the_wordmark_asset_is_missing(monkeypatch):
+    """Branding is never worth failing a client's download over."""
     import pathlib
 
     from app.services import report_service
 
-    report_service._brand_asset_bytes.cache_clear()
+    report_service._citiq_logo_bytes.cache_clear()
     monkeypatch.setattr(report_service, "_CITIQ_LOGO_PATH", pathlib.Path("no/such/logo.svg"))
-    monkeypatch.setattr(report_service, "_CITIQ_MARK_PATH", pathlib.Path("no/such/mark.svg"))
     try:
         pdf = build_pdf(_report(), client_name="Acme")
         assert pdf.startswith(b"%PDF")
-        # The footer text still lands, just without the mark in front of it.
         assert "Page 1 of" in _pdf_text(pdf)
     finally:
-        report_service._brand_asset_bytes.cache_clear()
+        report_service._citiq_logo_bytes.cache_clear()
+
+
+def test_the_report_carries_no_colour_but_the_brand_accent():
+    """Every hue in the report is Citiq orange; everything else is ink or grey.
+
+    Guards the whole document, not just the charts: a stray red or blue slipping
+    back into a table style or a priority rule is exactly the kind of thing that
+    is invisible in a diff and obvious on a client's desk.
+    """
+    from app.services import report_charts
+    from app.services.report_service import _PRIORITY_COLORS
+
+    def is_neutral(hexcode: str) -> bool:
+        r, g, b = (int(hexcode[i:i + 2], 16) for i in (1, 3, 5))
+        return max(r, g, b) - min(r, g, b) <= 12   # no meaningful hue
+
+    brand = {"#F06922", "#FEF0E9"}
+    for name in ("SERIES", "SERIES_WASH", "NEGATIVE", "NEUTRAL", "INK", "INK_2",
+                 "INK_MUTED", "GRID", "RULE"):
+        value = getattr(report_charts, name).hexval()[2:]  # 0xRRGGBB -> RRGGBB
+        hexcode = f"#{value.upper()}"
+        assert hexcode in brand or is_neutral(hexcode), (
+            f"report_charts.{name} = {hexcode} is neither brand nor neutral"
+        )
+
+    for priority, hexcode in _PRIORITY_COLORS.items():
+        assert hexcode.upper() in brand or is_neutral(hexcode), (
+            f"priority '{priority}' = {hexcode} is neither brand nor neutral"
+        )
 
 
 def test_masthead_lays_out_with_and_without_a_client_logo():

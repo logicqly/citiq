@@ -23,7 +23,7 @@ Two coloured variants sit alongside the monochrome mark:
 | File | What it is | Where it renders |
 |---|---|---|
 | `citiq-ful-logo.svg` | full lockup, mark plus wordmark | the cover of every generated run report, opposite the client's own logo |
-| `citiq-colored-logo.svg` | the mark alone, in brand orange | the admin sidebar brand, the client dashboard header, and the footer of every report page |
+| `citiq-colored-logo.svg` | the mark alone, in brand orange | the admin sidebar brand and the client dashboard header |
 
 Both carry the brand orange in **both themes**: the app components hard-code the
 hexes rather than inheriting `currentColor`, so a theme switch never recolours
@@ -35,10 +35,10 @@ and empty-state watermarks use, since those surfaces own their colour.
 | Admin sidebar | `admin-frontend/src/components/ui/mark.tsx` (`CitiqLogo`) |
 | Client dashboard header | `web/src/components/ui.tsx` (`CitiqLogo`) |
 
-The API renders its two from copies under `api/app/assets/`, because the API
-images are built with `api/` as the Docker build context and nothing outside it
-exists at runtime. Change the file here first, then copy it across in the same
-commit; `api/app/tests/test_report_pdf.py` fails if any of them drift apart.
+The API renders the lockup from a copy at `api/app/assets/citiq-logo.svg`,
+because the API images are built with `api/` as the Docker build context and
+nothing outside it exists at runtime. Change the file here first, then copy it across in the same
+commit; `api/app/tests/test_report_pdf.py` fails if the two drift apart.
 
 In-app the mark inherits `currentColor` so it tracks the ink scale in both
 themes; the favicons are the only place it carries the brand orange.
@@ -59,6 +59,12 @@ references it.
 The page is pure black; surfaces step up in near-black increments. White is
 the only accent; all hierarchy comes from the ink scale. Structure comes from
 white hairlines at low alpha and one soft white radial glow (6-12% opacity).
+
+Charts in the generated PDF report follow the same rule: Citiq orange
+(`#F06922`) carries every measured value, the neutral midpoint and context marks
+are grey, and the negative pole is deep ink. Red is deliberately not used beside
+the accent, because orange against red measures ΔE 11.9 for normal vision
+(under the 15 floor) and the two are hard to tell apart.
 
 | Token | Hex | | Token | Hex |
 |---|---|---|---|---|

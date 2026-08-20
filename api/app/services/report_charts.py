@@ -12,11 +12,15 @@ Design rules applied here (they are what keep the set looking like one system):
   a diverging stacked bar centred on neutral. "You against the field" ->
   emphasis: the client in the accent hue, everyone else in the de-emphasis grey.
 
-  One data hue. The report is printed on white, so the palette is the accent
-  blue for magnitude, its red opposite for the negative pole, and grey for the
-  neutral midpoint and for context marks. Blue against red clears every
-  colour-vision-deficiency and contrast gate on a white surface with room to
-  spare, which is what makes the diverging bar readable in grayscale print too.
+  The brand palette, unchanged: one accent on an ink scale. Citiq orange carries
+  every measured value; the neutral midpoint and context marks are grey; the
+  negative pole is deep ink. Nothing else gets a colour.
+
+  Red is deliberately absent as the negative pole. Beside the brand orange it
+  measures ΔE 11.9 for normal vision, under the 15 floor, so a reader with full
+  colour vision cannot reliably tell the two apart; orange against ink separates
+  on lightness, which survives every colour-vision deficiency and grayscale
+  print as well.
 
   Text never wears the data colour. Values, labels and legends are ink; identity
   comes from the coloured mark beside them.
@@ -35,8 +39,8 @@ from reportlab.lib import colors
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
 # -- Palette ------------------------------------------------------------------
-# Print surface is white. Blue and red are the validated poles; grey is the
-# neutral midpoint and the de-emphasis mark, which is meant to read as grey.
+# Print surface is white. Orange and deep ink are the diverging poles; grey is
+# the neutral midpoint and the de-emphasis mark, which is meant to read as grey.
 SURFACE = colors.white
 INK = colors.HexColor("#0B0B0B")          # primary text
 INK_2 = colors.HexColor("#52514E")        # secondary text
@@ -44,9 +48,9 @@ INK_MUTED = colors.HexColor("#898781")    # axis labels, de-emphasis marks
 GRID = colors.HexColor("#E1E0D9")         # hairline gridlines
 RULE = colors.HexColor("#C3C2B7")         # baselines, card rules
 
-SERIES = colors.HexColor("#2A78D6")       # the accent: magnitude + the client
-SERIES_WASH = colors.HexColor("#E9F1FB")  # the accent at ~10% over white
-NEGATIVE = colors.HexColor("#E34948")     # the opposite pole
+SERIES = colors.HexColor("#F06922")       # Citiq orange: magnitude + the client
+SERIES_WASH = colors.HexColor("#FEF0E9")  # the accent at ~10% over white
+NEGATIVE = colors.HexColor("#2A2A2A")     # deep ink: the opposite pole
 NEUTRAL = colors.HexColor("#898781")      # diverging midpoint / context
 
 FONT = "Helvetica"

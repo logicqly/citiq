@@ -253,9 +253,9 @@ The PDF is written to be handed to someone who was not in the room. It runs in t
 
 **Reading the charts:**
 
-- Blue is always you or the measured value; grey is context or a neutral mention; red is a
-  negative mention. Nothing is encoded by colour alone, so the report survives a black and
-  white printer.
+- Citiq orange is always you or the measured value; grey is context or a neutral mention;
+  deep ink is a negative mention. Nothing is encoded by colour alone, so the report survives
+  a black and white printer.
 - Every chart is followed by the table it was drawn from, so any number can be checked.
 - The trend chart's last point is this run, and it is the same figure as the citation rate
   tile on the same page.

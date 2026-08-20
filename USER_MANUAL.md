@@ -245,7 +245,7 @@ The PDF is written to be handed to someone who was not in the room. It runs in t
 
 | Page | What it holds |
 |------|---------------|
-| **1. Executive view** | Your logo (if your account manager has uploaded one), the headline numbers as tiles, three or four plain sentences stating what those numbers say, the **citation rate trend chart** across your recent runs, and a data quality note |
+| **1. Executive view** | Your logo (if your account manager has uploaded one) with the Citiq mark opposite it, the headline numbers as tiles, three or four plain sentences stating what those numbers say, the **citation rate trend chart** across your recent runs, and a data quality note |
 | **2. Platforms** | **Citation rate by AI platform** chart, the same figures as a table, and the **"how the brand is described" chart** splitting each platform's citations into recommended, neutral and negative |
 | **3. Competitors** | **Share of voice chart** placing you against your competitors on one scale, and the table behind it |
 | **4. Recommendations** | Every action generated from the run, highest priority first, with a coloured priority rule and the full brief |

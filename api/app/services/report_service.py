@@ -16,7 +16,9 @@ For admin reports (include_internal=True):
 Both PDFs print the client's uploaded brand logo on the cover when the admin has
 set one (see logo_service); without one the cover is text only, exactly as before.
 """
+import functools
 import io
+import pathlib
 import uuid
 from datetime import datetime, timezone
 
@@ -207,6 +209,35 @@ def _opportunity_cell(result: dict) -> str:
 # for data — because the brand is monochrome and because a printed report full of
 # coloured furniture reads as a template. All chart drawing lives in
 # report_charts; everything here is document structure.
+
+# The Citiq wordmark, printed on the cover as the maker's mark beside the
+# client's own logo. Vendored into the package (app/assets/README.md explains
+# why it is not read from docs/brand) and read once per process.
+_CITIQ_LOGO_PATH = pathlib.Path(__file__).resolve().parent.parent / "assets" / "citiq-logo.svg"
+
+
+@functools.lru_cache(maxsize=1)
+def _citiq_logo_bytes() -> bytes | None:
+    """The wordmark's bytes, or None if the asset is missing.
+
+    Missing is survivable: a report without the Citiq mark is still a valid
+    report, and failing the client's download over branding would be the wrong
+    trade.
+    """
+    try:
+        return _CITIQ_LOGO_PATH.read_bytes()
+    except OSError:
+        return None
+
+
+def _citiq_logo_flowable(max_width_pt: float, max_height_pt: float):
+    from app.services.logo_service import SVG_MIME, build_logo_flowable
+
+    data = _citiq_logo_bytes()
+    if data is None:
+        return None
+    return build_logo_flowable(data, SVG_MIME, max_width_pt, max_height_pt)
+
 
 _PRIORITY_COLORS = {
     "high": "#D03B3B",
@@ -527,15 +558,8 @@ def build_pdf(
     story: list = []
 
     # ── Page 1: the executive view ────────────────────────────────────────────
-    if logo is not None:
-        from app.services.logo_service import build_logo_flowable
-
-        logo_flowable = build_logo_flowable(
-            logo[0], logo[1], max_width_pt=52 * mm, max_height_pt=16 * mm
-        )
-        if logo_flowable is not None:
-            story.append(logo_flowable)
-            story.append(Spacer(1, 7 * mm))
+    story.append(_masthead(logo, content_w))
+    story.append(Spacer(1, 7 * mm))
 
     story.append(Paragraph(tracked_xml("GEO monitoring report"), styles["eyebrow"]))
     story.append(Paragraph(_esc(client_name), styles["cover_title"]))
@@ -720,6 +744,45 @@ def build_pdf(
 
     doc.build(story, canvasmaker=_numbered_canvas(client_name, run_label))
     return buf.getvalue()
+
+
+def _masthead(logo, content_w):
+    """The cover's top row: the client's logo left, the Citiq wordmark right.
+
+    Read as "this report is for them, produced by us". The Citiq mark is set
+    smaller than the space allowed for the client's, because on their report
+    their brand leads. Either side may be absent (a client with no uploaded logo,
+    or a missing asset) and the row still lays out.
+    """
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Spacer, Table, TableStyle
+
+    from app.services.logo_service import build_logo_flowable
+
+    client_cell = Spacer(1, 1)
+    if logo is not None:
+        client_flowable = build_logo_flowable(
+            logo[0], logo[1], max_width_pt=52 * mm, max_height_pt=16 * mm
+        )
+        if client_flowable is not None:
+            client_cell = client_flowable
+
+    citiq_cell = _citiq_logo_flowable(max_width_pt=29 * mm, max_height_pt=8.5 * mm)
+    if citiq_cell is None:
+        citiq_cell = Spacer(1, 1)
+    else:
+        citiq_cell.hAlign = "RIGHT"
+
+    row = Table([[client_cell, citiq_cell]], colWidths=[content_w * 0.6, content_w * 0.4])
+    row.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return row
 
 
 def _meta_style():

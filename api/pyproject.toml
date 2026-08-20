@@ -75,6 +75,11 @@ dev = [
 where = ["."]
 include = ["app*"]
 
+# Brand assets the report prints. Declared so a non-editable install ships them;
+# see app/assets/README.md for why they are vendored rather than read from docs/.
+[tool.setuptools.package-data]
+"app.assets" = ["*.svg"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["app/tests"]

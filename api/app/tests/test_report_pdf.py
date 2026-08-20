@@ -364,6 +364,78 @@ def test_recommendation_content_of_any_type_is_survivable():
     assert build_pdf(report, client_name="Acme").startswith(b"%PDF")
 
 
+# -- The Citiq wordmark on the cover -----------------------------------------
+
+def test_citiq_wordmark_asset_is_present_and_renders():
+    """The cover prints the Citiq lockup beside the client's own logo.
+
+    Asserts the vendored copy actually parses: a truncated or corrupt asset
+    would otherwise fail silently, since a logo that cannot be drawn is skipped
+    rather than raised.
+    """
+    from app.services.report_service import _citiq_logo_bytes, _citiq_logo_flowable
+
+    data = _citiq_logo_bytes()
+    assert data is not None, "app/assets/citiq-logo.svg is missing"
+    assert b"<svg" in data[:4096]
+
+    drawing = _citiq_logo_flowable(max_width_pt=82.0, max_height_pt=24.0)
+    assert drawing is not None, "the wordmark did not render; is svglib installed?"
+    assert 0 < drawing.width <= 82.0
+    assert 0 < drawing.height <= 24.0
+
+
+def test_vendored_wordmark_matches_the_brand_source():
+    """The API copy must not drift from docs/brand.
+
+    Skipped where docs/ is not on disk: the API image is built from api/ alone,
+    so this check only runs in the repo, which is where drift happens.
+    """
+    import pathlib
+
+    from app.services.report_service import _CITIQ_LOGO_PATH
+
+    source = pathlib.Path(__file__).resolve().parents[3] / "docs" / "brand" / "citiq-ful-logo.svg"
+    if not source.exists():
+        pytest.skip("docs/brand is not present in this build context")
+    assert source.read_bytes() == _CITIQ_LOGO_PATH.read_bytes(), (
+        "api/app/assets/citiq-logo.svg has drifted from docs/brand/citiq-ful-logo.svg"
+    )
+
+
+def test_cover_still_builds_when_the_wordmark_asset_is_missing(monkeypatch):
+    """Branding is never worth failing a client's download over."""
+    import pathlib
+
+    from app.services import report_service
+
+    report_service._citiq_logo_bytes.cache_clear()
+    monkeypatch.setattr(report_service, "_CITIQ_LOGO_PATH", pathlib.Path("no/such/logo.svg"))
+    try:
+        assert build_pdf(_report(), client_name="Acme").startswith(b"%PDF")
+    finally:
+        report_service._citiq_logo_bytes.cache_clear()
+
+
+def test_masthead_lays_out_with_and_without_a_client_logo():
+    """Either side of the cover row may be absent."""
+    from app.services.report_service import _masthead
+
+    png = _png_bytes()
+    assert _masthead(None, 493.0) is not None
+    assert _masthead((png, "image/png"), 493.0) is not None
+
+
+def _png_bytes() -> bytes:
+    import io
+
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGBA", (200, 50), (11, 11, 11, 255)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
 # -- Text the fonts cannot draw ----------------------------------------------
 
 def test_pdf_safe_transliterates_typography_and_drops_the_undrawable():

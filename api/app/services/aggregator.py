@@ -9,7 +9,7 @@ import uuid
 from collections import Counter, defaultdict
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis import Analysis, CitationType
@@ -282,4 +282,99 @@ async def get_prompt_details(
             results=items,
         )
         for prompt, items in prompt_map.values()
+    ]
+
+
+# ── Cross-run metrics (shared by the dashboard and the PDF report) ─────────────
+
+async def compute_run_visibility_score(
+    run_id: uuid.UUID, db: AsyncSession
+) -> float | None:
+    """The weighted 0-100 Visibility Score for a run, or None when it has no
+    analyses.
+
+    Lives here rather than in a route so the client dashboard and the PDF report
+    print the same number: a report that disagreed with the app the client is
+    looking at would be worse than one with no score at all. The weights are
+    admin-configurable; the maths is in app.services.visibility.
+    """
+    from app.models.system_setting import SystemSetting
+    from app.services.visibility import compute_visibility_score
+
+    rows = (
+        await db.execute(
+            select(Analysis, Response)
+            .join(Response, Analysis.response_id == Response.id)
+            .where(Response.run_id == run_id)
+        )
+    ).all()
+    if not rows:
+        return None
+
+    settings_row = (
+        await db.execute(select(SystemSetting).where(SystemSetting.id == 1))
+    ).scalar_one_or_none()
+    weights = settings_row.visibility_weights if settings_row else {}
+    return compute_visibility_score(list(rows), weights)
+
+
+async def compute_citation_trend(
+    client_id: uuid.UUID, db: AsyncSession, limit: int = 8
+) -> list[dict]:
+    """Effective citation rate per recent results-bearing run, oldest first.
+
+    One grouped query rather than a summary per run: the report needs a handful
+    of points, not a handful of full run summaries.
+
+    Ungrounded responses are filtered out exactly as compute_run_summary filters
+    them, so the last point of the trend equals the citation rate printed beside
+    it. A trend whose final point disagreed with the headline number would
+    discredit both.
+    """
+    from sqlalchemy import case, or_
+
+    from app.models.run import RESULT_STATUSES, Run
+
+    effective_types = [
+        CitationType.recommended,
+        CitationType.mentioned,
+        CitationType.negative,
+    ]
+
+    rows = (
+        await db.execute(
+            select(
+                Run.id,
+                Run.display_id,
+                Run.created_at,
+                func.count(Analysis.id).label("total"),
+                func.count(
+                    case((Analysis.citation_type.in_(effective_types), 1))
+                ).label("cited"),
+            )
+            .join(Response, Response.run_id == Run.id)
+            .join(Analysis, Analysis.response_id == Response.id)
+            .where(
+                Run.client_id == client_id,
+                Run.status.in_(RESULT_STATUSES),
+                or_(
+                    Response.grounding_status.is_(None),
+                    Response.grounding_status.in_(list(grounding.TRUSTWORTHY)),
+                ),
+            )
+            .group_by(Run.id, Run.display_id, Run.created_at)
+            .order_by(Run.created_at.desc())
+            .limit(limit)
+        )
+    ).all()
+
+    return [
+        {
+            "run_id": str(row.id),
+            "display_id": row.display_id,
+            "date": row.created_at.isoformat() if row.created_at else None,
+            "citation_rate": round(row.cited / row.total, 4) if row.total else 0.0,
+            "total_analyses": row.total,
+        }
+        for row in reversed(rows)
     ]

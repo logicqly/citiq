@@ -17,6 +17,7 @@
    - 4.3 [Dashboard Home](#43-dashboard-home)
    - 4.4 [Run History](#44-run-history)
    - 4.5 [Run Detail](#45-run-detail)
+   - 4.6 [Downloading the Report](#46-downloading-the-report)
 5. [Admin Dashboard Guide](#5-admin-dashboard-guide)
    - 5.1 [Logging In as Admin](#51-logging-in-as-admin)
    - 5.2 [Client List](#52-client-list)
@@ -232,6 +233,39 @@ A table showing every prompt with columns for each AI platform. Each cell shows:
 - **Client Citation**: Whether your brand appeared, and how it was characterized
 - **Competitors Cited**: Other brands mentioned in the same response
 - **Content Gaps**: Topics covered in the response that your brand's content doesn't address
+
+---
+
+### 4.6 Downloading the Report
+
+Any completed run can be downloaded from the Run Detail page as a **PDF report** or as
+**JSON** (the same data, for your own tooling).
+
+The PDF is written to be handed to someone who was not in the room. It runs in this order:
+
+| Page | What it holds |
+|------|---------------|
+| **1. Executive view** | Your logo (if your account manager has uploaded one), the headline numbers as tiles, three or four plain sentences stating what those numbers say, the **citation rate trend chart** across your recent runs, and a data quality note |
+| **2. Platforms** | **Citation rate by AI platform** chart, the same figures as a table, and the **"how the brand is described" chart** splitting each platform's citations into recommended, neutral and negative |
+| **3. Competitors** | **Share of voice chart** placing you against your competitors on one scale, and the table behind it |
+| **4. Recommendations** | Every action generated from the run, highest priority first, with a coloured priority rule and the full brief |
+| **5+. Evidence** | Every prompt, a verdict table per platform, and the AI's answer in its own words |
+
+**Reading the charts:**
+
+- Blue is always you or the measured value; grey is context or a neutral mention; red is a
+  negative mention. Nothing is encoded by colour alone, so the report survives a black and
+  white printer.
+- Every chart is followed by the table it was drawn from, so any number can be checked.
+- The trend chart's last point is this run, and it is the same figure as the citation rate
+  tile on the same page.
+- A chart with nothing to show is left out rather than printed empty. A run with no
+  competitors configured has no share of voice chart.
+
+**What the report excludes:** hollow citations (your brand named without substance) are
+excluded from every rate, and responses where the AI could not reach live web search are
+excluded entirely and reported in the data quality note. Cost and latency appear only in the
+admin copy of the report, never in yours.
 
 ---
 

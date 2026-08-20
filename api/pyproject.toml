@@ -65,6 +65,10 @@ dev = [
     "pytest-httpx>=0.30.0",
     "httpx>=0.27.0",
     "ruff>=0.4.4",
+
+    # Reads the generated PDF back as text, so the report tests can assert what a
+    # client would actually see on the page rather than just that bytes came out.
+    "pymupdf>=1.24.0",
 ]
 
 [tool.setuptools.packages.find]

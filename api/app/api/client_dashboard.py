@@ -25,10 +25,13 @@ from app.models.client import Client
 from app.models.competitor import Competitor
 from app.models.response import Response
 from app.models.run import RESULT_STATUSES, Run, RunStatus
-from app.models.system_setting import SystemSetting
 from app.schemas.aggregator import CitationQuality, PromptDetail, RunSummaryResponse
-from app.services.aggregator import compute_citation_quality, compute_run_summary, get_prompt_details
-from app.services.visibility import compute_visibility_score
+from app.services.aggregator import (
+    compute_citation_quality,
+    compute_run_summary,
+    compute_run_visibility_score,
+    get_prompt_details,
+)
 
 # Citation types that count toward the (hollow-excluded) citation rate.
 _EFFECTIVE_TYPES = [
@@ -118,30 +121,14 @@ class CompetitorOut(BaseModel):
 
 # ── Visibility score computation ──────────────────────────────────────────────
 
-async def _visibility_weights(db: AsyncSession) -> dict:
-    """Load the admin-configured visibility weights (empty {} -> code defaults)."""
-    row = (
-        await db.execute(select(SystemSetting).where(SystemSetting.id == 1))
-    ).scalar_one_or_none()
-    return row.visibility_weights if row else {}
-
-
 async def _compute_visibility(run_id: uuid.UUID, db: AsyncSession) -> float | None:
-    """Weighted Visibility Score for a run. Weights are admin-configurable;
-    the scoring math lives in app.services.visibility.compute_visibility_score."""
-    rows = (
-        await db.execute(
-            select(Analysis, Response)
-            .join(Response, Analysis.response_id == Response.id)
-            .where(Response.run_id == run_id)
-        )
-    ).all()
+    """Weighted Visibility Score for a run.
 
-    if not rows:
-        return None
-
-    weights = await _visibility_weights(db)
-    return compute_visibility_score(list(rows), weights)
+    Delegates to the aggregator so this endpoint and the PDF report cannot drift
+    apart: the number the client reads in the app is the number their report
+    prints. Weights are admin-configurable; the maths is in app.services.visibility.
+    """
+    return await compute_run_visibility_score(run_id, db)
 
 
 async def _citation_rate_for_run(run_id: uuid.UUID, db: AsyncSession) -> float:

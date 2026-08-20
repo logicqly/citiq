@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, ForeignKey, Integer, LargeBinary, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, LargeBinary, String
 from sqlalchemy import text as sa_text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -69,7 +69,15 @@ class Client(Base):
     logo_mime: Mapped[str | None] = mapped_column(String(50), nullable=True)
     logo_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # Doubles as the cache key the frontends use to re-fetch after a re-upload.
-    logo_updated_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    #
+    # Explicitly timezone-aware, like recommendations.reviewed_at and unlike the
+    # bare datetime columns above it. A bare mapped_column() is typed
+    # DateTime(timezone=False) and binds to asyncpg as "timestamp without time
+    # zone", which cannot encode the aware datetime the upload handler writes:
+    # the whole upload 500s on commit. The column itself is TIMESTAMPTZ (0037).
+    logo_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # ── Recommendations: generate automatically after a run's analysis? ──────
     # The per-client default for the trigger toggle. False means runs finish

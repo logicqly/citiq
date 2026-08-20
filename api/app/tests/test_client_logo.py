@@ -99,6 +99,56 @@ def test_unrenderable_logo_is_skipped_not_raised():
     assert build_logo_flowable(b"<svg>", SVG_MIME, 100.0, 100.0) is None
 
 
+# -- Storage: the column the upload handler writes ---------------------------
+
+def test_logo_timestamp_binds_as_timestamptz():
+    """Regression: the upload 500'd on every attempt.
+
+    logo_updated_at was declared as a bare mapped_column(), which SQLAlchemy
+    types DateTime(timezone=False) and renders as a "$1::TIMESTAMP WITHOUT TIME
+    ZONE" bind cast. The handler writes datetime.now(timezone.utc), and asyncpg
+    cannot encode an aware datetime into a naive timestamp parameter, so the
+    commit raised and FastAPI returned a bare 500 with nothing in the response
+    to say why.
+    """
+    from datetime import datetime, timezone
+
+    from sqlalchemy import update
+    from sqlalchemy.dialects.postgresql.asyncpg import dialect as asyncpg_dialect
+
+    from app.models.client import Client
+
+    statement = update(Client).values(logo_updated_at=datetime.now(timezone.utc))
+    sql = str(statement.compile(dialect=asyncpg_dialect()))
+    # Asserted on this column alone: the same UPDATE also stamps clients.
+    # updated_at, which is written naive (datetime.utcnow) and is correctly
+    # bound as a naive timestamp.
+    cast = sql.split("logo_updated_at=")[1]
+    assert cast.startswith("$"), cast
+    assert "::TIMESTAMP WITH TIME ZONE" in cast
+
+
+def test_logo_etag_is_a_real_epoch_second():
+    """The ETag reads .timestamp() off the stored value, which is only the true
+    instant when the column hands back an aware datetime."""
+    from datetime import datetime, timezone
+
+    from app.services.logo_service import logo_response_headers
+
+    stamp = datetime(2026, 8, 20, 12, 0, tzinfo=timezone.utc)
+    headers = logo_response_headers(PNG_MIME, stamp)
+    assert headers["ETag"] == f'"{int(stamp.timestamp())}"'
+    assert headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_logo_headers_survive_a_client_with_no_timestamp():
+    from app.services.logo_service import logo_response_headers
+
+    headers = logo_response_headers(SVG_MIME, None)
+    assert "ETag" not in headers
+    assert headers["Cache-Control"].startswith("private")
+
+
 # -- The report itself -------------------------------------------------------
 
 def _minimal_report() -> dict:

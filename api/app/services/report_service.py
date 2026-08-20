@@ -221,14 +221,18 @@ _MAX_RESPONSE_CHARS = 700
 
 
 def _esc(text) -> str:
-    """Escape text before it goes into a reportlab Paragraph.
+    """Prepare arbitrary text for a reportlab Paragraph.
 
-    Prompts, brand names and model answers are arbitrary strings; an unescaped
-    ``&`` or ``<`` in any of them raises inside the paragraph parser and takes
-    the whole report down with it.
+    Two jobs, in order. First reduce it to characters the report's fonts can
+    draw, so a Japanese brand name or an emoji in a model's answer does not
+    print as a row of boxes. Then escape it: prompts, brand names and model
+    answers are arbitrary strings, and an unescaped ``&`` or ``<`` raises inside
+    the paragraph parser and takes the whole report down with it.
     """
+    from app.services.report_charts import pdf_safe
+
     return (
-        str(text)
+        pdf_safe(text)
         .replace("&", "&amp;")
         .replace("<", "&lt;")
         .replace(">", "&gt;")
@@ -443,6 +447,12 @@ def _numbered_canvas(client_name: str, run_label: str):
     from reportlab.lib.units import mm
     from reportlab.pdfgen import canvas as pdfcanvas
 
+    from app.services.report_charts import pdf_safe
+
+    # Drawn straight onto the canvas, so it never passes through _esc.
+    footer_name = pdf_safe(client_name)
+    footer_run = pdf_safe(run_label)
+
     class NumberedCanvas(pdfcanvas.Canvas):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
@@ -469,8 +479,8 @@ def _numbered_canvas(client_name: str, run_label: str):
             self.line(18 * mm, y + 6, width - 18 * mm, y + 6)
             self.setFont("Helvetica", 7)
             self.setFillColor(colors.HexColor("#898781"))
-            self.drawString(18 * mm, y, client_name)
-            self.drawCentredString(width / 2, y, run_label)
+            self.drawString(18 * mm, y, footer_name)
+            self.drawCentredString(width / 2, y, footer_run)
             self.drawRightString(width - 18 * mm, y, f"Page {page} of {total}")
 
     return NumberedCanvas
@@ -809,7 +819,7 @@ def _recommendation_block(rec: dict, styles, content_w):
     so the block still reads in grayscale and to a colour-blind reader.
     """
     from reportlab.lib import colors
-    from reportlab.platypus import KeepTogether, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import Paragraph, Table, TableStyle
 
     priority = rec.get("priority", "low")
     color = colors.HexColor(_PRIORITY_COLORS.get(priority, "#898781"))
@@ -840,7 +850,13 @@ def _recommendation_block(rec: dict, styles, content_w):
                 f"<b>{label}:</b> {_clip(value, _MAX_VALUE_CHARS)}", styles["body"],
             ))
 
-    tbl = Table([[inner]], colWidths=[content_w])
+    # splitInRow is what makes this safe: the block is a single table row (that
+    # is how the priority rule is drawn down the left edge), and a row that
+    # cannot split is a row that must fit on one page. A real content brief runs
+    # longer than a page, and without this the whole report died with
+    # "Flowable too large on page" rather than the recommendation simply
+    # continuing overleaf.
+    tbl = Table([[inner]], colWidths=[content_w], splitInRow=1, repeatRows=0)
     tbl.setStyle(TableStyle([
         ("LINEBEFORE", (0, 0), (0, -1), 2.2, color),
         ("LEFTPADDING", (0, 0), (-1, -1), 10),
@@ -848,7 +864,10 @@ def _recommendation_block(rec: dict, styles, content_w):
         ("TOPPADDING", (0, 0), (-1, -1), 2),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
-    return KeepTogether([tbl, Spacer(1, 4)])
+    # Flowables carry their own trailing space; a Spacer would have to live
+    # inside a container, which is what caused the problem above.
+    tbl.spaceAfter = 6
+    return tbl
 
 
 def _prompt_block(prompt: dict, styles, content_w) -> list:

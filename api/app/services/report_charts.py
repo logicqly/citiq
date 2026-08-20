@@ -28,6 +28,8 @@ Design rules applied here (they are what keep the set looking like one system):
 A chart with nothing worth drawing returns None rather than an empty frame, so a
 run with (say) no competitors simply has no competitor chart.
 """
+import re
+
 from reportlab.graphics.shapes import Circle, Drawing, Line, PolyLine, Rect, String
 from reportlab.lib import colors
 from reportlab.pdfbase.pdfmetrics import stringWidth
@@ -62,8 +64,42 @@ CARD_PAD = 13.0
 # -- Primitives ---------------------------------------------------------------
 
 def _text(d, x, y, text, size=8, font=FONT, color=INK_2, anchor="start"):
-    d.add(String(x, y, str(text), fontName=font, fontSize=size,
+    d.add(String(x, y, pdf_safe(text), fontName=font, fontSize=size,
                  fillColor=color, textAnchor=anchor))
+
+
+# Characters the base-14 PDF fonts cannot draw, and the closest thing they can.
+# reportlab renders anything unmappable as a "not defined" box, so an AI answer
+# quoting a brand in Japanese would otherwise print as a row of black squares in
+# a document going to a client.
+_TRANSLITERATE = {
+    "‘": "'", "’": "'", "‚": "'", "‛": "'",
+    "“": '"', "”": '"', "„": '"',
+    "–": "-", "—": "-", "‐": "-", "‑": "-", "−": "-",
+    "…": "...", " ": " ", "•": "-", "·": "-",
+    "→": "->", "←": "<-", "✓": "yes", "✗": "no",
+    "­": "", "﻿": "",
+}
+_TRANSLATION = {ord(k): v for k, v in _TRANSLITERATE.items()}
+
+
+def pdf_safe(text) -> str:
+    """Text reduced to what the report's fonts can actually draw.
+
+    Typographic characters become their ASCII equivalents; anything still
+    unencodable (CJK, emoji, other scripts) is dropped rather than printed as a
+    box, and the gap it leaves is collapsed. Lossy by design: the alternative is
+    embedding a Unicode font in every PDF, and a dropped glyph reads better than
+    a black square in a client's report.
+    """
+    out = str(text).translate(_TRANSLATION)
+    if out.isascii():
+        return out
+    # cp1252 is what the base-14 fonts encode; ignore drops the rest.
+    out = out.encode("cp1252", "ignore").decode("cp1252")
+    # Close the gap a dropped run of characters leaves behind, without touching
+    # line breaks.
+    return re.sub(r"[ 	]{2,}", " ", out)
 
 
 def tracked(text: str) -> str:

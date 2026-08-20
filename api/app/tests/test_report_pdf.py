@@ -317,11 +317,98 @@ def test_ungrounded_results_are_labelled_not_scored():
     assert "Cited by: no platform" in text
 
 
+def test_a_recommendation_longer_than_a_page_does_not_kill_the_report():
+    """Regression: the PDF download 500'd for any client with a real content brief.
+
+    Each recommendation is drawn as a one-row table so the priority rule can run
+    down its left edge, and a table row that cannot split has to fit on one page.
+    Test fixtures were short; actual briefs run over a page, and reportlab raised
+    LayoutError("too large on page") for the whole document.
+    """
+    long_text = "AI answers name the brand but never quote a price. " * 8
+    report = _report(recommendations=[{
+        "id": "r1", "type": "content_brief", "status": "pending", "priority": "high",
+        "title": "Publish a pricing comparison page", "platform": "openai",
+        "target_query": "cheapest payroll software",
+        "content": {
+            "summary": long_text, "why_it_matters": long_text, "audience": long_text,
+            "outline": [f"Section {i}: {long_text[:200]}" for i in range(10)],
+            "key_points": [f"Point {i}: {long_text[:200]}" for i in range(10)],
+        },
+    }])
+    pdf = build_pdf(report, client_name="Acme")
+    assert pdf.startswith(b"%PDF")
+    # It has to actually run over a page, or the test is not exercising the split.
+    assert _pdf_page_count(pdf) >= 2
+
+
+def test_many_long_recommendations_all_render():
+    long_text = "Publish per-seat pricing and a comparison table. " * 8
+    report = _report(recommendations=[{
+        "id": f"r{i}", "type": "content_brief", "status": "pending",
+        "priority": ["high", "medium", "low"][i % 3], "title": f"Action {i}",
+        "content": {"summary": long_text, "points": [long_text[:200]] * 8},
+    } for i in range(6)])
+    assert build_pdf(report, client_name="Acme").startswith(b"%PDF")
+
+
+def test_recommendation_content_of_any_type_is_survivable():
+    """Generators are free to put anything in content; the report is not."""
+    report = _report(recommendations=[{
+        "id": "r1", "type": "schema", "status": "pending", "priority": "medium",
+        "title": "T", "content": {
+            "a_dict": {"nested": "value"}, "a_number": 42, "a_none": None,
+            "empty_list": [], "empty_str": "", "list_of_dicts": [{"x": 1}],
+        },
+    }])
+    assert build_pdf(report, client_name="Acme").startswith(b"%PDF")
+
+
+# -- Text the fonts cannot draw ----------------------------------------------
+
+def test_pdf_safe_transliterates_typography_and_drops_the_undrawable():
+    """reportlab prints a black box for anything the base-14 fonts lack."""
+    assert charts.pdf_safe("“smart” — dash…") == '"smart" - dash...'
+    assert charts.pdf_safe("CJK 日本語 emoji 🚀 end") == "CJK emoji end"
+    assert charts.pdf_safe("line one\nline 日本 two") == "line one\nline two"
+    assert charts.pdf_safe("plain ascii  kept") == "plain ascii  kept"
+
+
+def test_unicode_in_a_report_never_reaches_the_page_as_a_box():
+    report = _report(
+        competitor_stats=[{"brand": "Rival 日本語 🚀",
+                           "cited_count": 3, "share_of_voice": 0.2}],
+        prompts=[{
+            "prompt_id": "p1", "prompt_text": "Best tool? 日本語 🚀",
+            "category": "comparison",
+            "results": [{
+                "platform": "openai", "model_used": "gpt-5",
+                "raw_response": "Answer “quoted” — with 🚀 emoji.",
+                "grounding_status": "grounded", "client_cited": True,
+                "client_prominence": "primary", "client_sentiment": "positive",
+                "citation_type": "recommended", "client_characterization": None,
+                "citation_opportunity": "low", "opportunity_score": 1.0,
+                "reasoning": None, "competitors_cited": [], "content_gaps": [],
+            }],
+        }],
+    )
+    text = _pdf_text(build_pdf(report, client_name="Acme"))
+    # The replacement/notdef glyph extracts as U+FFFD; nothing should carry one.
+    assert "�" not in text
+    assert "Rival" in text and "Best tool?" in text
+
+
 def test_page_furniture_numbers_every_page():
     pdf = build_pdf(_report(), client_name="Acme")
     text = _pdf_text(pdf)
     assert "Page 1 of" in text
     assert "RUN-1" in text and "Acme" in text
+
+
+def _pdf_page_count(pdf: bytes) -> int:
+    pymupdf = pytest.importorskip("pymupdf", reason="PDF inspection is a dev-only check")
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        return doc.page_count
 
 
 def _pdf_text(pdf: bytes) -> str:

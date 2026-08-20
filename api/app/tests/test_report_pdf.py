@@ -366,7 +366,7 @@ def test_recommendation_content_of_any_type_is_survivable():
 
 # -- The Citiq wordmark on the cover -----------------------------------------
 
-def test_citiq_wordmark_asset_is_present_and_renders():
+def test_citiq_wordmark_renders_for_the_cover():
     """The cover prints the Citiq lockup beside the client's own logo.
 
     Asserts the vendored copy actually parses: a truncated or corrupt asset
@@ -385,36 +385,57 @@ def test_citiq_wordmark_asset_is_present_and_renders():
     assert 0 < drawing.height <= 24.0
 
 
-def test_vendored_wordmark_matches_the_brand_source():
-    """The API copy must not drift from docs/brand.
+def test_citiq_mark_renders_for_the_page_footer():
+    from app.services.report_service import _citiq_mark_drawing
+
+    drawing = _citiq_mark_drawing(height_pt=9)
+    assert drawing is not None, "the footer mark did not render"
+    assert 0 < drawing.height <= 9
+
+
+@pytest.mark.parametrize("source_name,vendored_attr", [
+    ("citiq-ful-logo.svg", "_CITIQ_LOGO_PATH"),
+    ("citiq-colored-logo.svg", "_CITIQ_MARK_PATH"),
+])
+def test_vendored_brand_assets_match_their_source(source_name, vendored_attr):
+    """The API copies must not drift from docs/brand.
 
     Skipped where docs/ is not on disk: the API image is built from api/ alone,
     so this check only runs in the repo, which is where drift happens.
     """
     import pathlib
 
-    from app.services.report_service import _CITIQ_LOGO_PATH
+    from app.services import report_service
 
-    source = pathlib.Path(__file__).resolve().parents[3] / "docs" / "brand" / "citiq-ful-logo.svg"
+    source = pathlib.Path(__file__).resolve().parents[3] / "docs" / "brand" / source_name
     if not source.exists():
         pytest.skip("docs/brand is not present in this build context")
-    assert source.read_bytes() == _CITIQ_LOGO_PATH.read_bytes(), (
-        "api/app/assets/citiq-logo.svg has drifted from docs/brand/citiq-ful-logo.svg"
+    vendored = getattr(report_service, vendored_attr)
+    assert source.read_bytes() == vendored.read_bytes(), (
+        f"{vendored.name} has drifted from docs/brand/{source_name}"
     )
 
 
-def test_cover_still_builds_when_the_wordmark_asset_is_missing(monkeypatch):
-    """Branding is never worth failing a client's download over."""
+def test_report_still_builds_when_the_brand_assets_are_missing(monkeypatch):
+    """Branding is never worth failing a client's download over.
+
+    Covers the cover lockup and the footer mark together: the footer is stamped
+    onto every page, so a missing asset there would break every page, not one.
+    """
     import pathlib
 
     from app.services import report_service
 
-    report_service._citiq_logo_bytes.cache_clear()
+    report_service._brand_asset_bytes.cache_clear()
     monkeypatch.setattr(report_service, "_CITIQ_LOGO_PATH", pathlib.Path("no/such/logo.svg"))
+    monkeypatch.setattr(report_service, "_CITIQ_MARK_PATH", pathlib.Path("no/such/mark.svg"))
     try:
-        assert build_pdf(_report(), client_name="Acme").startswith(b"%PDF")
+        pdf = build_pdf(_report(), client_name="Acme")
+        assert pdf.startswith(b"%PDF")
+        # The footer text still lands, just without the mark in front of it.
+        assert "Page 1 of" in _pdf_text(pdf)
     finally:
-        report_service._citiq_logo_bytes.cache_clear()
+        report_service._brand_asset_bytes.cache_clear()
 
 
 def test_masthead_lays_out_with_and_without_a_client_logo():

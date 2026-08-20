@@ -213,30 +213,51 @@ def _opportunity_cell(result: dict) -> str:
 # The Citiq wordmark, printed on the cover as the maker's mark beside the
 # client's own logo. Vendored into the package (app/assets/README.md explains
 # why it is not read from docs/brand) and read once per process.
-_CITIQ_LOGO_PATH = pathlib.Path(__file__).resolve().parent.parent / "assets" / "citiq-logo.svg"
+_ASSETS = pathlib.Path(__file__).resolve().parent.parent / "assets"
+_CITIQ_LOGO_PATH = _ASSETS / "citiq-logo.svg"    # full lockup, for the cover
+_CITIQ_MARK_PATH = _ASSETS / "citiq-mark.svg"    # mark alone, for the page footer
 
 
-@functools.lru_cache(maxsize=1)
-def _citiq_logo_bytes() -> bytes | None:
-    """The wordmark's bytes, or None if the asset is missing.
+@functools.lru_cache(maxsize=2)
+def _brand_asset_bytes(path) -> bytes | None:
+    """A vendored brand asset's bytes, or None if it is missing.
 
     Missing is survivable: a report without the Citiq mark is still a valid
     report, and failing the client's download over branding would be the wrong
     trade.
     """
     try:
-        return _CITIQ_LOGO_PATH.read_bytes()
+        return pathlib.Path(path).read_bytes()
     except OSError:
         return None
 
 
+def _citiq_logo_bytes() -> bytes | None:
+    return _brand_asset_bytes(_CITIQ_LOGO_PATH)
+
+
 def _citiq_logo_flowable(max_width_pt: float, max_height_pt: float):
+    """The full Citiq lockup, scaled into the given box."""
     from app.services.logo_service import SVG_MIME, build_logo_flowable
 
     data = _citiq_logo_bytes()
     if data is None:
         return None
     return build_logo_flowable(data, SVG_MIME, max_width_pt, max_height_pt)
+
+
+def _citiq_mark_drawing(height_pt: float):
+    """The Citiq mark alone, for stamping onto the page footer.
+
+    Returned as a Drawing rather than a flowable because the footer is painted
+    directly onto the canvas, outside the platypus story.
+    """
+    from app.services.logo_service import SVG_MIME, build_logo_flowable
+
+    data = _brand_asset_bytes(_CITIQ_MARK_PATH)
+    if data is None:
+        return None
+    return build_logo_flowable(data, SVG_MIME, height_pt, height_pt)
 
 
 _PRIORITY_COLORS = {
@@ -476,6 +497,7 @@ def _numbered_canvas(client_name: str, run_label: str):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
+    from reportlab.graphics import renderPDF
     from reportlab.pdfgen import canvas as pdfcanvas
 
     from app.services.report_charts import pdf_safe
@@ -483,6 +505,11 @@ def _numbered_canvas(client_name: str, run_label: str):
     # Drawn straight onto the canvas, so it never passes through _esc.
     footer_name = pdf_safe(client_name)
     footer_run = pdf_safe(run_label)
+
+    # The mark rides the footer of every page. Built once and re-stamped;
+    # renderPDF.draw does not mutate the drawing.
+    mark = _citiq_mark_drawing(height_pt=9)
+    mark_width = (mark.width + 5) if mark is not None else 0
 
     class NumberedCanvas(pdfcanvas.Canvas):
         def __init__(self, *args, **kwargs):
@@ -508,9 +535,12 @@ def _numbered_canvas(client_name: str, run_label: str):
             self.setStrokeColor(colors.HexColor("#E1E0D9"))
             self.setLineWidth(0.4)
             self.line(18 * mm, y + 6, width - 18 * mm, y + 6)
+            if mark is not None:
+                # Sits on the text baseline, optically centred against 7pt type.
+                renderPDF.draw(mark, self, 18 * mm, y - 1.5)
             self.setFont("Helvetica", 7)
             self.setFillColor(colors.HexColor("#898781"))
-            self.drawString(18 * mm, y, footer_name)
+            self.drawString(18 * mm + mark_width, y, footer_name)
             self.drawCentredString(width / 2, y, footer_run)
             self.drawRightString(width - 18 * mm, y, f"Page {page} of {total}")
 

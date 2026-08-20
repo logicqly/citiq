@@ -1,4 +1,24 @@
-// The Citiq mark, used in the sidebar brand and the login card.
+// Brand orange. Fixed hexes rather than tokens: the mark carries the same
+// colour in both themes, so it must not resolve through the ink scale.
+const BRAND = "#F06922";
+const BRAND_DEEP = "#EF6623";
+
+// The Citiq mark in brand colour, for the sidebar brand.
+// Source: docs/brand/citiq-colored-logo.svg (same geometry as CitiqMark below,
+// with the brand fills baked in instead of currentColor).
+export function CitiqLogo({ size }: { size?: number }) {
+  const style = size ? { width: size, height: size, flex: `0 0 ${size}px` } : undefined;
+  return (
+    <svg viewBox="0 0 131.01 127.02" fill="none" xmlns="http://www.w3.org/2000/svg" style={style}>
+      <path fill={BRAND} d="M58.48.26c3.81-.17,8.72-.47,13.28-.06,25.65,2.66,46.92,19.91,53.3,45.53,4.25,17.05,1.81,34.93-7.2,50.43l-15.81-16.17c8.45-21.14,0-46.19-20.78-54.49-12.9-5.15-27.82-4.54-39.78,2.75-15,9.14-21.65,26.35-18.97,43.43,2.27,14.52,11.14,26.21,24.58,31.32-.09,4.35-6.12,2.17-7.66,4.74-1.14,1.9-.74,4.3-.94,6.39-2.79,1.05-5.61.99-7.92,2.98,1.12,1.45,2.36,2.98,3.28,3.45-12.11-5.63-21.44-15.37-27.36-27.67C-5.82,67.28-.33,36.34,20.48,16.84,31.05,6.93,44.57,1.72,58.48.26Z" />
+      <polygon fill={BRAND_DEEP} points="131.01 124.89 103.5 125.23 57.33 77.29 84.81 77.03 131.01 124.89" />
+      <path fill={BRAND} d="M33.86,120.57c-.92-.47-5.03-2.4-6.14-3.85,2.31-2,4.21-4.76,6.99-5.81.21-2.09,1.09-4.22,2.23-6.12,1.54-2.57,10.07,2.57,10.16-1.78,6.9,2.62,14.56,3.1,22.17,1.95l16.76,17.58c-17.27,6.54-36.45,5.96-52.17-1.97Z" />
+    </svg>
+  );
+}
+
+// The monochrome Citiq mark, inheriting currentColor so it tracks the ink scale.
+// Used where the surface owns the colour, such as the login card.
 export function CitiqMark({ size }: { size?: number }) {
   const style = size ? { width: size, height: size, flex: `0 0 ${size}px` } : undefined;
   return (

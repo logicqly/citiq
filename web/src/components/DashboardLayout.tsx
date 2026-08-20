@@ -6,7 +6,7 @@ import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownR
 import { useAuth } from "../auth/AuthContext";
 import { useTheme } from "../lib/theme";
 import { useClientLogo } from "../lib/useClientLogo";
-import { CitiqMark } from "./ui";
+import { CitiqLogo } from "./ui";
 
 export function DashboardLayout() {
   const { user, logout, display } = useAuth();
@@ -28,7 +28,7 @@ export function DashboardLayout() {
     <div style={{ minHeight: "100vh" }}>
       <header className="top">
         <NavLink to="/dashboard" className="brand" end>
-          <CitiqMark size={24} />
+          <CitiqLogo size={24} />
           {logoUrl && (
             <>
               <span className="csep" aria-hidden="true" />

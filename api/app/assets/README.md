@@ -11,6 +11,7 @@ and silently render nothing in production.
 | File | Copied from | Used by |
 |---|---|---|
 | `citiq-logo.svg` | `docs/brand/citiq-ful-logo.svg` | the cover of every generated run report (`report_service`) |
+| `citiq-mark.svg` | `docs/brand/citiq-colored-logo.svg` | the footer of every page of that report |
 
 When a brand asset changes, update `docs/brand/` first and copy it here in the
 same commit. `test_report_pdf.py` asserts this copy still parses and renders, so

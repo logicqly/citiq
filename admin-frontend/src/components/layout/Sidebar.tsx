@@ -4,7 +4,7 @@ import ScheduleRoundedIcon from "@mui/icons-material/ScheduleRounded";
 import SettingsRoundedIcon from "@mui/icons-material/SettingsRounded";
 import LogoutRoundedIcon from "@mui/icons-material/LogoutRounded";
 import { useAuth } from "../../auth/AuthContext";
-import { CitiqMark } from "../ui/mark";
+import { CitiqLogo } from "../ui/mark";
 import { getInitials } from "../ui/ui";
 import { usePendingReview } from "../ui/usePendingReview";
 
@@ -25,7 +25,7 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
   return (
     <aside className={`side${open ? " open" : ""}`}>
       <div className="brand">
-        <CitiqMark size={25} />
+        <CitiqLogo size={25} />
         <div className="wm">Citiq</div>
         <span className="env">ADMIN</span>
       </div>

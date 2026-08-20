@@ -18,12 +18,27 @@ the single source of truth; every surface below renders the same geometry.
 | Empty-state watermark | inline data-URI in `admin-frontend/src/index.css` and `web/src/index.css` |
 | Design handoff sheets | `docs/design-handoff/*.html` (`CITIQ_PATHS`) |
 
-The full lockup (mark plus wordmark) is `citiq-ful-logo.svg` in this folder. It
-is printed on the cover of every generated run report, opposite the client's own
-logo. The API serves it from a copy at `api/app/assets/citiq-logo.svg`, because
-the API images are built with `api/` as the Docker build context and nothing
-outside it exists at runtime. Change this file first, then copy it across in the
-same commit; `api/app/tests/test_report_pdf.py` fails if the two drift apart.
+Two coloured variants sit alongside the monochrome mark:
+
+| File | What it is | Where it renders |
+|---|---|---|
+| `citiq-ful-logo.svg` | full lockup, mark plus wordmark | the cover of every generated run report, opposite the client's own logo |
+| `citiq-colored-logo.svg` | the mark alone, in brand orange | the admin sidebar brand, the client dashboard header, and the footer of every report page |
+
+Both carry the brand orange in **both themes**: the app components hard-code the
+hexes rather than inheriting `currentColor`, so a theme switch never recolours
+the logo. `CitiqMark` (monochrome, `currentColor`) is still what the login cards
+and empty-state watermarks use, since those surfaces own their colour.
+
+| Where | Component |
+|---|---|
+| Admin sidebar | `admin-frontend/src/components/ui/mark.tsx` (`CitiqLogo`) |
+| Client dashboard header | `web/src/components/ui.tsx` (`CitiqLogo`) |
+
+The API renders its two from copies under `api/app/assets/`, because the API
+images are built with `api/` as the Docker build context and nothing outside it
+exists at runtime. Change the file here first, then copy it across in the same
+commit; `api/app/tests/test_report_pdf.py` fails if any of them drift apart.
 
 In-app the mark inherits `currentColor` so it tracks the ink scale in both
 themes; the favicons are the only place it carries the brand orange.
